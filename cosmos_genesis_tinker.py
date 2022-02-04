@@ -46,9 +46,12 @@ class GenesisTinker:  # pylint: disable=R0904
         description="Load and modify a cosmos genesis file")
 
     def __init__(self, default_input=None, default_shasum=None, default_output=None):
-        self.argparse.add_argument('--input', default=default_input)
-        self.argparse.add_argument('--shasum', default=default_shasum)
-        self.argparse.add_argument('--output', default=default_output)
+        self.argparse.add_argument(
+            '--input', help="file path or HTTPS URL to the genesis file", default=default_input)
+        self.argparse.add_argument(
+            '--shasum', help="for verifying the genesis file on download", default=default_shasum)
+        self.argparse.add_argument(
+            '--output', help="path for the final genesis file", default=default_output)
 
         self.args = self.argparse.parse_args()
 
@@ -80,7 +83,7 @@ class GenesisTinker:  # pylint: disable=R0904
         """
         Log help message to the console if the --help flag wasn't set
         """
-        if not 'help' in self.args:
+        if 'help' not in self.args:
             self.argparse.print_help()
 
     def log_step(self, message):
