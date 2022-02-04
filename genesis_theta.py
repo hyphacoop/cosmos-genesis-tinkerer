@@ -19,19 +19,6 @@
 import sys
 import cosmos_genesis_tinker
 
-if len(sys.argv) == 1:
-    print(
-        'Usage: ./genesis-theta.py  [new_genesis.json] [exported_genesis.json]')
-    # sys.exit(1)
-
-exported_genesis_filename = False
-new_genesis_filename = False
-
-if len(sys.argv) > 1:
-    exported_genesis_filename = sys.argv[1]
-if len(sys.argv) > 2:
-    new_genesis_filename = sys.argv[2]
-
 # static values (for now, should be in .json config file)
 NEW_CHAIN_ID = "theta-testnet"
 HYDROGEN_SELF_DELEGATION_ADDR = "cosmos1lapm2cq4qjrl4fm5xcftfhg245m63d30mswfjp"
@@ -49,16 +36,15 @@ RHO_LIQUID_TOKEN_INCREASE = 1000
 LAMBDA_LIQUID_TOKEN_INCREASE = 1000
 EPSILON_LIQUID_TOKEN_INCREASE = 1000
 
-genesis = cosmos_genesis_tinker.GenesisTinker()
+genesis = cosmos_genesis_tinker.GenesisTinker(
+    default_input=GENESIS_ARCHIVE, default_shasum=GENESIS_SHASUM)
 
-if exported_genesis_filename:
-    print("Loading file")
-    genesis.load_file(exported_genesis_filename)
-else:
-    print("Downloading file")
-    genesis.load_url(GENESIS_ARCHIVE, GENESIS_SHASUM)
+if len(sys.argv) == 1:
+    genesis.log_help()
 
 print("Tinkering")
+
+genesis.auto_load()
 
 genesis.swap_chain_id(NEW_CHAIN_ID)
 
@@ -79,6 +65,5 @@ genesis.increase_delegator_stake_to_validator(
 print("SHA256SUM:")
 print(genesis.generate_shasum())
 
-if new_genesis_filename:
-    print("Saving")
-    genesis.save_file(new_genesis_filename)
+if not genesis.auto_save():
+    print('Not saving')

@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
+"""
+Example tinker script based on the manual steps that were taken for the vega testnet
+"""
 
 import sys
 import cosmos_genesis_tinker
-
-if len(sys.argv) == 1:
-    print(
-        'Usage: ./modify_genesis.py  [new_genesis.json] [exported_genesis.json]')
-    # sys.exit(1)
-
-exported_genesis_filename = False
-new_genesis_filename = False
-
-if len(sys.argv) > 1:
-    new_genesis_filename = sys.argv[1]
-if len(sys.argv) > 2:
-    exported_genesis_filename = sys.argv[2]
 
 # static values (for now, should be in .json config file)
 NODE1_OLD_PUBKEY = "cOQZvh/h9ZioSeUMZB/1Vy1Xo5x2sjrVjlE/qHnYifM="
@@ -41,19 +31,19 @@ NEW_DELEGATOR_KEY = "A81DhG/5sB6RA8dl/6jtmX0svTc0xJL5NjPPI/q4jJWP"
 BINANCE_VALIDATOR_ADDRESS = "cosmosvaloper156gqf9837u7d4c4678yt3rl4ls9c5vuursrrzf"
 BINANCE_TOKEN_BONDING_POOL = "cosmos1fl48vsnmsdzcv85q5d2q4z5ajdha8yu34mf0eh"
 
+# pylint: disable=C0301
 GENESIS_ARCHIVE = "https://github.com/cosmos/vega-test/blob/master/exported_unmodified_genesis.json.gz?raw=true"
 GENESIS_SHASUM = "86f29f23f9df51f5c58cb2c2f95e263f96f123801fc9844765f98eca49fe188f"
 
-genesis = cosmos_genesis_tinker.GenesisTinker()
+genesis = cosmos_genesis_tinker.GenesisTinker(
+    default_input=GENESIS_ARCHIVE, default_shasum=GENESIS_SHASUM)
 
-if exported_genesis_filename:
-    print("Loading file")
-    genesis.load_file(exported_genesis_filename)
-else:
-    print("Downloading file")
-    genesis.load_url(GENESIS_ARCHIVE, GENESIS_SHASUM)
+if len(sys.argv) == 1:
+    genesis.log_help()
 
 print("Tinkering")
+
+genesis.auto_load()
 
 genesis.swap_chain_id("cosmos-genesis-tinker-example")
 
@@ -87,6 +77,4 @@ genesis.increase_delegator_stake_to_validator(
 print("SHA256SUM:")
 print(genesis.generate_shasum())
 
-if new_genesis_filename:
-    print("Saving")
-    genesis.save_file(new_genesis_filename)
+genesis.auto_save()

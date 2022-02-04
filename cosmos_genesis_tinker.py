@@ -9,6 +9,7 @@ import json
 from hashlib import sha256
 from zipfile import ZipFile
 from io import BytesIO
+import argparse
 import gzip
 import tarfile
 import requests
@@ -41,6 +42,15 @@ class GenesisTinker:  # pylint: disable=R0904
     genesis = {}
     should_log_steps = True
     __step_count = 0
+    argparse = argparse.ArgumentParser(
+        description="Load and modify a cosmos genesis file")
+
+    def __init__(self, default_input=None, default_shasum=None, default_output=None):
+        self.argparse.add_argument('--input', default=default_input)
+        self.argparse.add_argument('--shasum', default=default_shasum)
+        self.argparse.add_argument('--output', default=default_output)
+
+        self.args = self.argparse.parse_args()
 
     def get_app_state(self):
         """
@@ -65,6 +75,13 @@ class GenesisTinker:  # pylint: disable=R0904
         return self.genesis["validators"]
 
     validators = property(get_validators)
+
+    def log_help(self):
+        """
+        Log help message to the console if the --help flag wasn't set
+        """
+        if not 'help' in self.args:
+            self.argparse.print_help()
 
     def log_step(self, message):
         """
@@ -93,7 +110,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def load_url(self, url, shasum=False):
+    def load_url(self, url, shasum=None):
         """
         Download and parse a genesis file from the web.
         Optionally specify a sha256 sum to verify the data integrity
@@ -125,7 +142,7 @@ class GenesisTinker:  # pylint: disable=R0904
         else:
             content = request.content
 
-        if shasum is not False:
+        if shasum is not None:
             got_digest = sha256(content).hexdigest()
             if got_digest != shasum:
                 raise Exception(
@@ -134,6 +151,40 @@ class GenesisTinker:  # pylint: disable=R0904
         self.genesis = json.loads(content)
 
         return self
+
+    def auto_load(self):
+        """
+        Attempts to load the genesis file from CLI arguments
+        --input CLI flag can be used to specify either a file path or URL
+        --shasum CLI fla gcan be used to specify a shasum to verify against
+        """
+
+        input_name = self.args.input
+        shasum = self.args.shasum
+
+        if input_name is None:
+            raise Exception(
+                'Unable to load genesis file, please specify the --input flag')
+
+        self.log_step('Autoloading ' + input_name)
+
+        if input_name.startswith('http://') or input_name.startswith('https://'):
+            return self.load_url(input_name, shasum)
+
+        return self.load_file(input_name)
+
+    def auto_save(self):
+        """
+        Attempts to save the genesis file if the --output CLI arg has been specified
+        """
+
+        output_name = self.args.output
+
+        if output_name is not None:
+            self.log_step("Saving genesis file to " + output_name)
+            return self.save_file(output_name)
+
+        return False
 
     def generate_json(self):
         """
