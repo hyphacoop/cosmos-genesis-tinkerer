@@ -21,6 +21,7 @@ POWER_TO_TOKENS = 1000000
 DEFAULT_NAME = "hy-hydrogen"
 DEFAULT_PUBKEY = "1Lt+cRGXjtRDlQSoQ+DPWj/GNYOzl+0U+7BFAvruu5s="
 
+
 def _swap_address_in_list(old_address, new_address, validators):
     found_validator = False
     for validator in validators:
@@ -33,13 +34,37 @@ def _swap_address_in_list(old_address, new_address, validators):
         raise Exception("Could not find validator address")
 
 
-class GenesisTinker:
+class GenesisTinker:  # pylint: disable=R0904
     """
     This class gives you primitives for tinkering with Cosmos chain Genesis Files
     """
     genesis = {}
     should_log_steps = True
     __step_count = 0
+
+    def get_app_state(self):
+        """
+        Get the app state from the genesis file
+        """
+        return self.genesis["app_state"]
+
+    app_state = property(get_app_state)
+
+    def get_gov(self):
+        """
+        Get the governance module state from the genesis file
+        """
+        return self.app_state["gov"]
+
+    gov = property(get_gov)
+
+    def get_validators(self):
+        """
+        Get the list of validators from the genesis file
+        """
+        return self.genesis["validators"]
+
+    validators = property(get_validators)
 
     def log_step(self, message):
         """
@@ -65,7 +90,7 @@ class GenesisTinker:
 
         with open(path, "r", encoding="utf8") as file:
             self.genesis = json.load(file)
-            file.close
+
         return self
 
     def load_url(self, url, shasum=False):
@@ -136,6 +161,69 @@ class GenesisTinker:
 
         return self
 
+    def swap_max_deposit_period(self, max_deposit_period="1209600s"):
+        """
+        Swapping governance max_deposit_period
+        """
+
+        self.log_step(
+            "Swapping governance max deposit period to " + max_deposit_period)
+
+        deposit_params = self.gov["deposit_params"]
+        deposit_params["max_deposit_period"] = max_deposit_period
+
+        return self
+
+    def swap_min_deposit(self, min_amount="64000000", denom="uatom"):
+        """
+        Swap out the min deposit amount for governance.
+        Creates a new amount if the denomination doesn't exist
+        """
+
+        self.log_step(
+            "Swapping min governance deposit amount to " + min_amount + denom)
+
+        deposit_params = self.gov['deposit_params']
+        min_deposit = deposit_params['min_deposit']
+
+        has_found_deposit_denom = False
+
+        for deposit in min_deposit:
+            if deposit["denom"] == denom:
+                has_found_deposit_denom = True
+                deposit["amount"] = min_amount
+
+        if not has_found_deposit_denom:
+            self.log_step(
+                "Adding new deposit denomination since " + denom + " was not found")
+            min_deposit.append({"amount": min_amount, "denom": denom})
+
+        return self
+
+    def swap_tally_param(self, parameter_name, value):
+        """
+        Swap out tally parameters.
+        parameter_name should be one of "quorum", "threshold", "veto_threshold"
+        """
+
+        self.log_step("Swapping tally parameter " +
+                      parameter_name + " to " + value)
+
+        self.gov["tally_params"][parameter_name] = value
+
+        return self
+
+    def swap_voting_period(self, voting_period="1209600s"):
+        """
+        Swap out the voting period for the governance module
+        """
+
+        self.log_step("Swapping governance voting period to " + voting_period)
+
+        self.gov["voting_params"] = voting_period
+
+        return self
+
     def swap_chain_id(self, chain_id):
         """
         Swap the chain ID with your own name
@@ -163,10 +251,10 @@ class GenesisTinker:
 
         self.log_step("Swapping validator " + str(old) + " to " + str(new))
 
-        staking_validators = self.genesis["app_state"]["staking"]["validators"]
-        validators = self.genesis["validators"]
-        missed_blocks = self.genesis["app_state"]["slashing"]["missed_blocks"]
-        signing_infos = self.genesis["app_state"]["slashing"]["signing_infos"]
+        staking_validators = self.app_state["staking"]["validators"]
+        validators = self.validators
+        missed_blocks = self.app_state["slashing"]["missed_blocks"]
+        signing_infos = self.app_state["slashing"]["signing_infos"]
 
         found_validator = False
         for validator in validators:
@@ -210,10 +298,10 @@ class GenesisTinker:
         self.log_step("Swapping delegator address " +
                       old_address + " to " + new_address)
 
-        accounts = self.genesis["app_state"]["auth"]["accounts"]
-        balances = self.genesis["app_state"]["bank"]["balances"]
-        delegations = self.genesis["app_state"]["staking"]["delegations"]
-        starting_infos = self.genesis["app_state"]["distribution"]["delegator_starting_infos"]
+        accounts = self.app_state["auth"]["accounts"]
+        balances = self.app_state["bank"]["balances"]
+        delegations = self.app_state["staking"]["delegations"]
+        starting_infos = self.app_state["distribution"]["delegator_starting_infos"]
 
         found_account = False
         for account in accounts:
@@ -261,9 +349,10 @@ class GenesisTinker:
         Creates a new coin based on a given name if it doesn't exist
         """
 
-        self.log_step("Creating new coin " + denom + " valued at " + str(amount))
+        self.log_step("Creating new coin " + denom +
+                      " valued at " + str(amount))
 
-        supplies = self.genesis["app_state"]["bank"]["supply"]
+        supplies = self.app_state["bank"]["supply"]
 
         for supply in supplies:
             if supply['denom'] == denom:
@@ -282,7 +371,7 @@ class GenesisTinker:
         self.log_step("Increasing balance of " + address +
                       " by " + str(increase) + " " + denom)
 
-        balances = self.genesis["app_state"]["bank"]["balances"]
+        balances = self.app_state["bank"]["balances"]
 
         found_balance = False
         for balance in balances:
@@ -314,7 +403,7 @@ class GenesisTinker:
 
         self.log_step("Increasing supply of " + denom + " by " + str(increase))
 
-        supplies = self.genesis["app_state"]["bank"]["supply"]
+        supplies = self.app_state["bank"]["supply"]
 
         found_coin = False
         for coin in supplies:
@@ -343,12 +432,12 @@ class GenesisTinker:
 
         validators in the genesis["validators"] looks like this:
         {
-            'address': 'EBED694E6CE1224FB1E8A2DD8EE63A38568B1E2B', 
-            'name': 'Umbrella ☔', 
-            'power': '471680', 
-            'pub_key': 
+            'address': 'EBED694E6CE1224FB1E8A2DD8EE63A38568B1E2B',
+            'name': 'Umbrella ☔',
+            'power': '471680',
+            'pub_key':
                 {
-                    'type': 'tendermint/PubKeyEd25519', 
+                    'type': 'tendermint/PubKeyEd25519',
                     'value': 'z/Dg9WU/rlIB+LaQVMMHW/a7rvalfIcyz3VdOwfvguc='
                 }
         }
@@ -357,13 +446,14 @@ class GenesisTinker:
         self.log_step("Increasing validator power of " +
                       validator_address + " by " + str(power_increase))
 
-        validators = self.genesis['validators']
+        validators = self.validators
 
         found_validator = False
         smallest_validator_index = 0
-        smallest_validator_power = int(validators[smallest_validator_index]["power"])
+        smallest_validator_power = int(
+            validators[smallest_validator_index]["power"])
         last_total_power = int(
-            self.genesis['app_state']['staking']['last_total_power'])
+            self.app_state['staking']['last_total_power'])
 
         for index, validator in enumerate(validators):
             if validator["address"] == validator_address:
@@ -378,17 +468,20 @@ class GenesisTinker:
         if not found_validator:
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
-                validators[smallest_validator_index]["power"] = str(power_increase)
+                validators[smallest_validator_index]["power"] = str(
+                    power_increase)
                 validators[smallest_validator_index]["address"] = validator_address
                 validators[smallest_validator_index]["pub_key"]["value"] = pub_key
                 validators[smallest_validator_index]["name"] = name
-                new_last_total_power = last_total_power + power_increase - smallest_validator_power
+                new_last_total_power = last_total_power + \
+                    power_increase - smallest_validator_power
             else:
-                raise Exception('Could not add validator to validator set due to low power')
+                raise Exception(
+                    'Could not add validator to validator set due to low power')
         else:
             new_last_total_power = last_total_power + power_increase
 
-        self.genesis["app_state"]["staking"]["last_total_power"] = str(
+        self.app_state["staking"]["last_total_power"] = str(
             new_last_total_power)
 
         return self
@@ -401,7 +494,7 @@ class GenesisTinker:
         self.log_step("Increasing validator stake of " +
                       operator_address + " by " + str(increase))
 
-        staking_validators = self.genesis["app_state"]["staking"]["validators"]
+        staking_validators = self.app_state["staking"]["validators"]
 
         found_validator = False
         for validator in staking_validators:
@@ -431,7 +524,7 @@ class GenesisTinker:
         self.log_step("Increasing delegator stake of " +
                       delegator_address + " by " + str(increase))
 
-        starting_infos = self.genesis["app_state"]["distribution"]["delegator_starting_infos"]
+        starting_infos = self.app_state["distribution"]["delegator_starting_infos"]
 
         found_stake = False
         for info in starting_infos:
@@ -457,6 +550,7 @@ class GenesisTinker:
         self.increase_balance(token_bonding_pool_address, stake)
         self.increase_delegator_stake(delegator, stake)
         self.increase_validator_stake(operator_address, stake)
-        self.increase_validator_power(validator_address, int(stake/power_to_tokens))
+        self.increase_validator_power(
+            validator_address, int(stake/power_to_tokens))
 
         return self
