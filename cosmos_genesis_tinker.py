@@ -387,7 +387,6 @@ class GenesisTinker:  # pylint: disable=R0904
                 found_delegation = True
                 break
 
-        # TODO: Check for exceptions?
         if not found_delegation:
             raise Exception("Could not find old delegator stake")
 
@@ -513,7 +512,7 @@ class GenesisTinker:  # pylint: disable=R0904
             if validator["address"] == validator_address:
                 old_power = int(validator["power"])
                 new_power = old_power + power_increase
-                validator["power"] = str(new_power)
+                validator["power"] = str(int(new_power))
                 found_validator = True
             if int(validator["power"]) < smallest_validator_power:
                 smallest_validator_index = index
@@ -559,7 +558,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
                 old_shares = float(validator["delegator_shares"])
                 new_shares = old_shares + increase
-                validator["delegator_address"] = str(
+                validator["delegator_shares"] = str(
                     format(new_shares, ".18f"))
 
                 found_validator = True
