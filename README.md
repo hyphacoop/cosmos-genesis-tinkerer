@@ -19,7 +19,7 @@ You can run the theta tinker file like this: ` ./genesis_theta.py --output new_g
 
 ## Developing
 
-* Make sure you save required pip modules to requirements.txt if you're developing
+Make sure you save required pip modules to requirements.txt whenever requirements change `pip freeze > requirements. txt`
 ## API
 
 Tinkering with genesis files
