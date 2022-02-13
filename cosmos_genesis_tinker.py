@@ -17,6 +17,7 @@ import bisect
 
 # Default value is the cosmoshub-4 bonded token pool account
 TOKEN_BONDING_POOL_ADDRESS = "cosmos1fl48vsnmsdzcv85q5d2q4z5ajdha8yu34mf0eh"
+NOT_BONDED_TOKENS_POOL_ADDRESS = "cosmos1tygms3xhhs3yv487phx3dw4a95jn7t7lpm470r"
 
 DEFAULT_POWER = 6000000000
 POWER_TO_TOKENS = 1000000
@@ -566,9 +567,12 @@ class GenesisTinker:  # pylint: disable=R0904
         for validator in staking_validators:
             if validator["operator_address"] == operator_address:
                 old_amount = int(validator["tokens"])
+                if validator["status"] == "BOND_STATUS_UNBONDED":
+                    validator["status"] = "BOND_STATUS_BONDED"
+                    self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, old_amount)
+                    self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, -1*old_amount)
                 new_amount = old_amount + increase
                 validator["tokens"] = str(new_amount)
-                validator["status"] = "BOND_STATUS_BONDED"
                 old_shares = float(validator["delegator_shares"])
                 new_shares = old_shares + increase
                 validator["delegator_shares"] = str(
