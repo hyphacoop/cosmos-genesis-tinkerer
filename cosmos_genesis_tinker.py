@@ -13,6 +13,7 @@ import argparse
 import gzip
 import tarfile
 import requests
+import bisect
 
 # Default value is the cosmoshub-4 bonded token pool account
 TOKEN_BONDING_POOL_ADDRESS = "cosmos1fl48vsnmsdzcv85q5d2q4z5ajdha8yu34mf0eh"
@@ -412,8 +413,8 @@ class GenesisTinker:  # pylint: disable=R0904
                 # Already exists, so we don't need to add it
                 return self
 
-        supplies.append({"denom": denom, "amount": amount})
-
+        # coins must be in ascending sorted order by denom
+        bisect.insort_right(supplies, {"denom": denom, "amount": str(amount)}, key=lambda x: x.get("denom")) 
         return self
 
     def increase_balance(self, address, increase=300000000, denom="uatom"):
@@ -439,8 +440,8 @@ class GenesisTinker:  # pylint: disable=R0904
                         had_coin = True
                         break
                 if not had_coin:
-                    balance["coins"].append(
-                        {"denom": denom, "amount": str(increase)})
+                    # coins must be in ascending sorted order by denom
+                    bisect.insort_right(balance["coins"], {"denom": denom, "amount": str(increase)}, key=lambda x: x.get("denom")) 
                 break
 
         if not found_balance:
@@ -521,13 +522,25 @@ class GenesisTinker:  # pylint: disable=R0904
         if not found_validator:
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
-                validators[smallest_validator_index]["power"] = str(
-                    power_increase)
-                validators[smallest_validator_index]["address"] = validator_address
-                validators[smallest_validator_index]["pub_key"]["value"] = pub_key
-                validators[smallest_validator_index]["name"] = name
-                new_last_total_power = last_total_power + \
-                    power_increase - smallest_validator_power
+                # INSERT NEW VALIDATOR
+                self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
+                validators.append({ "address": validator_address,
+                    "name": name,
+                    "power": str(power_increase),
+                    "pub_key": {
+                        "type": "tendermint/PubKeyEd25519",
+                        "value": pub_key
+                    }
+                })
+                new_last_total_power = last_total_power + power_increase
+                # REPLACE SMALLEST VALIDATOR
+                #  validators[smallest_validator_index]["power"] = str(
+                #    power_increase)
+                # validators[smallest_validator_index]["address"] = validator_address
+                # validators[smallest_validator_index]["pub_key"]["value"] = pub_key
+                # validators[smallest_validator_index]["name"] = name
+                # new_last_total_power = last_total_power + \
+                #    power_increase - smallest_validator_power
             else:
                 raise Exception(
                     'Could not add validator to validator set due to low power')
@@ -555,7 +568,7 @@ class GenesisTinker:  # pylint: disable=R0904
                 old_amount = int(validator["tokens"])
                 new_amount = old_amount + increase
                 validator["tokens"] = str(new_amount)
-
+                validator["status"] = "BOND_STATUS_BONDED"
                 old_shares = float(validator["delegator_shares"])
                 new_shares = old_shares + increase
                 validator["delegator_shares"] = str(

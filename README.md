@@ -6,11 +6,12 @@ You can get more docs by invoking `pydoc3 cosmos_genesis_tinker`.
 TODO: Add the output to the README or it's own .md file
 
 ## Setup
+**Prerequisite**: You'll need `python 3.10`
 
 1. Clone from github `git clone git@github.com:hyphacoop/cosmos-genesis-tinkerer.git`
 2. Change directory `cd cosmos-genesis-tinkerer`
-3. Create a python virtual environment (requires python3) `python3 -m venv env`
-4. Source env shell vars  `source env/bin/activate`
+3. Create a python virtual environment `python3 -m venv .env`
+4. Source env shell vars  `source .env/bin/activate`
 5. Install requirements `pip install -r requirements.txt`
 
 ## Running a tinker file
