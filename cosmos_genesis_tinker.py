@@ -524,24 +524,46 @@ class GenesisTinker:  # pylint: disable=R0904
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
                 # INSERT NEW VALIDATOR
-                self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
-                validators.append({ "address": validator_address,
-                    "name": name,
-                    "power": str(power_increase),
-                    "pub_key": {
-                        "type": "tendermint/PubKeyEd25519",
-                        "value": pub_key
-                    }
-                })
-                new_last_total_power = last_total_power + power_increase
+                # self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
+                # validators.append({ "address": validator_address,
+                #    "name": name,
+                #    "power": str(power_increase),
+                #    "pub_key": {
+                #        "type": "tendermint/PubKeyEd25519",
+                #        "value": pub_key
+                #    }
+                # })
+                # new_last_total_power = last_total_power + power_increase
                 # REPLACE SMALLEST VALIDATOR
-                #  validators[smallest_validator_index]["power"] = str(
-                #    power_increase)
-                # validators[smallest_validator_index]["address"] = validator_address
-                # validators[smallest_validator_index]["pub_key"]["value"] = pub_key
-                # validators[smallest_validator_index]["name"] = name
-                # new_last_total_power = last_total_power + \
-                #    power_increase - smallest_validator_power
+
+                validators[smallest_validator_index]["address"] = validator_address
+                smallest_validator_pub_key = validators[smallest_validator_index]["pub_key"]["value"]
+                validators[smallest_validator_index]["pub_key"]["value"] = pub_key
+                validators[smallest_validator_index]["name"] = name
+
+
+                # Also remove from staking validators
+                staking_validators = self.app_state["staking"]["validators"]
+                for staking_validator in staking_validators:
+                    if staking_validator["consensus_pubkey"]["key"] == smallest_validator_pub_key:
+                        if staking_validator["status"] == "BOND_STATUS_BONDED":
+                            self.log_step("Unbonding smallest validator")
+                            tokens_to_unbond = int(staking_validator["tokens"])
+                            staking_validator["status"] = "BOND_STATUS_UNBONDED"
+                            self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, -1*tokens_to_unbond)
+                            self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, tokens_to_unbond)
+                        break
+               
+                for staking_validator in staking_validators:
+                    if staking_validator["consensus_pubkey"]["key"] == pub_key:
+                        starting_delegator_shares = int(float(staking_validator["delegator_shares"]))
+                        break
+                
+                validators[smallest_validator_index]["power"] = str(
+                    power_increase + 1)
+                new_last_total_power = last_total_power + \
+                    power_increase + 1 - smallest_validator_power
+                
             else:
                 raise Exception(
                     'Could not add validator to validator set due to low power')
