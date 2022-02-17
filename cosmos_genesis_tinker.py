@@ -474,7 +474,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_validator_power(self, validator_address, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
+    def increase_validator_power(self, operator_address, validator_address, vali, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
         """
         Increase the staking power of a validator
         Also increases the last total power value
@@ -523,7 +523,10 @@ class GenesisTinker:  # pylint: disable=R0904
         if not found_validator:
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
-                # INSERT NEW VALIDATOR
+                # There are two ways we can do this, either increasing the number of validators or by replacing the smallest validator
+                 
+                # OPTION 1: INSERT NEW VALIDATOR
+
                 # self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
                 # validators.append({ "address": validator_address,
                 #    "name": name,
@@ -534,35 +537,46 @@ class GenesisTinker:  # pylint: disable=R0904
                 #    }
                 # })
                 # new_last_total_power = last_total_power + power_increase
-                # REPLACE SMALLEST VALIDATOR
+
+                # OPTION 2: REPLACE SMALLEST VALIDATOR
 
                 validators[smallest_validator_index]["address"] = validator_address
                 smallest_validator_pub_key = validators[smallest_validator_index]["pub_key"]["value"]
                 validators[smallest_validator_index]["pub_key"]["value"] = pub_key
                 validators[smallest_validator_index]["name"] = name
 
-
                 # Also remove from staking validators
                 staking_validators = self.app_state["staking"]["validators"]
                 for staking_validator in staking_validators:
-                    if staking_validator["consensus_pubkey"]["key"] == smallest_validator_pub_key:
-                        if staking_validator["status"] == "BOND_STATUS_BONDED":
-                            self.log_step("Unbonding smallest validator")
-                            tokens_to_unbond = int(staking_validator["tokens"])
-                            staking_validator["status"] = "BOND_STATUS_UNBONDED"
-                            self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, -1*tokens_to_unbond)
-                            self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, tokens_to_unbond)
-                        break
+                   if staking_validator["consensus_pubkey"]["key"] == smallest_validator_pub_key:
+                       smallest_validator_op_addr = staking_validator["operator_address"]
+                       if staking_validator["status"] == "BOND_STATUS_BONDED":
+                           self.log_step("Unbonding smallest validator")
+                           tokens_to_unbond = int(staking_validator["tokens"])
+                           staking_validator["status"] = "BOND_STATUS_UNBONDED"
+                           self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, -1*tokens_to_unbond)
+                           self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, tokens_to_unbond)
+                       break
                
                 for staking_validator in staking_validators:
-                    if staking_validator["consensus_pubkey"]["key"] == pub_key:
-                        starting_delegator_shares = int(float(staking_validator["delegator_shares"]))
-                        break
+                   if staking_validator["consensus_pubkey"]["key"] == pub_key:
+                       starting_delegator_shares = int(float(staking_validator["delegator_shares"]))
+                       break
+
+                # Also replace in last validator powers
+                # TODO: the +1 in the power increase is a hack. The validator we're working with has a self delegation of 1 atom from before.
+                last_validator_powers = self.app_state["staking"]["last_validator_powers"]
+                for last_validator_power in last_validator_powers:
+                   if last_validator_power["address"] == smallest_validator_op_addr:
+                       last_validator_power["address"] = operator_address
+                       last_validator_power["power"] = str(power_increase + 1)
+                       break
+
                 
                 validators[smallest_validator_index]["power"] = str(
-                    power_increase + 1)
+                   power_increase + 1)
                 new_last_total_power = last_total_power + \
-                    power_increase + 1 - smallest_validator_power
+                   power_increase + 1 - smallest_validator_power
                 
             else:
                 raise Exception(
@@ -642,7 +656,7 @@ class GenesisTinker:  # pylint: disable=R0904
         self.increase_balance(token_bonding_pool_address, stake)
         self.increase_delegator_stake(delegator, stake)
         self.increase_validator_stake(operator_address, stake)
-        self.increase_validator_power(
+        self.increase_validator_power(operator_address,
             validator_address, int(stake/power_to_tokens))
 
         return self
