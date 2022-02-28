@@ -217,6 +217,19 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
+    def swap_unbonding_time(self, unbonding_time="1814400s"):
+        """
+        Swapping staking unbonding_time
+        """
+
+        self.log_step(
+            "Swapping staking unbonding_time to " + unbonding_time)
+
+        staking_params = self.app_state["staking"]["params"]
+        staking_params["unbonding_time"] = unbonding_time
+
+        return self
+
     def swap_max_deposit_period(self, max_deposit_period="1209600s"):
         """
         Swapping governance max_deposit_period
@@ -276,7 +289,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         self.log_step("Swapping governance voting period to " + voting_period)
 
-        self.gov["voting_params"] = voting_period
+        self.gov["voting_params"]["voting_period"] = voting_period
 
         return self
 
@@ -346,7 +359,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_delegator(self, old_address, new_address):
+    def swap_delegator(self, old_address, new_address, old_pubkey, new_pubkey):
         """
         Swaps out an exsiting delegator with a new one
         """
@@ -364,6 +377,8 @@ class GenesisTinker:  # pylint: disable=R0904
             try:
                 if account["address"] == old_address:
                     account["address"] = new_address
+                    if account["pub_key"]["key"] == old_pubkey:
+                        account["pub_key"]["key"] = new_pubkey
                     found_account = True
                     break
             except KeyError:
@@ -474,7 +489,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_validator_power(self, operator_address, validator_address, vali, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
+    def increase_validator_power(self, operator_address, validator_address, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
         """
         Increase the staking power of a validator
         Also increases the last total power value
@@ -519,7 +534,17 @@ class GenesisTinker:  # pylint: disable=R0904
             if int(validator["power"]) < smallest_validator_power:
                 smallest_validator_index = index
                 smallest_validator_power = int(validator["power"])
+        
+        last_validator_powers = self.app_state["staking"]["last_validator_powers"]
+        for last_validator_power in last_validator_powers:
+            if last_validator_power["address"] == operator_address:
+                old_power = int(last_validator_power["power"])
+                new_power = old_power + power_increase
+                last_validator_power["power"] = str(new_power)
+                break
 
+        #TODO what happens if the validator is not in the validator set? 
+        """
         if not found_validator:
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
@@ -577,12 +602,28 @@ class GenesisTinker:  # pylint: disable=R0904
                    power_increase + 1)
                 new_last_total_power = last_total_power + \
                    power_increase + 1 - smallest_validator_power
+
+                # Add validator to slashing module
+                ## Signing infos
+                # signing_info = {}
+                # signing_info["address"] = 
+                #     {
+                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
+                # "validator_signing_info": {
+                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
+                #  "index_offset": "16874",
+                #  "jailed_until": "1970-01-01T00:00:00Z",
+                #  "missed_blocks_counter": "0",
+                #  "start_height": "5354927",
+                #  "tombstoned": false
+                #  }
+                #  }
                 
             else:
                 raise Exception(
                     'Could not add validator to validator set due to low power')
-        else:
-            new_last_total_power = last_total_power + power_increase
+        """       
+        new_last_total_power = last_total_power + power_increase
 
         self.app_state["staking"]["last_total_power"] = str(
             new_last_total_power)
@@ -604,6 +645,7 @@ class GenesisTinker:  # pylint: disable=R0904
             if validator["operator_address"] == operator_address:
                 old_amount = int(validator["tokens"])
                 if validator["status"] == "BOND_STATUS_UNBONDED":
+                    self.log_step("Changing bond status to BOND_STATUS_BONDED")
                     validator["status"] = "BOND_STATUS_BONDED"
                     self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, old_amount)
                     self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, -1*old_amount)

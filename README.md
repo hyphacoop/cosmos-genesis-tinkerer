@@ -3,7 +3,10 @@
 ⚠️ This genesis tinkerer is in active development. 
 
 You can get more docs by invoking `pydoc3 cosmos_genesis_tinker`.
-TODO: Add the output to the README or it's own .md file
+
+TODO: 
+- Add the output to the README or it's own .md file
+- Swap delegators and validators are currently buggy. We're using sed script to pre-process genesis files to swap out keys.
 
 ## Setup
 **Prerequisite**: You'll need `python 3.10`

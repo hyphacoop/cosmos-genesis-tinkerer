@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+# NOTE: these replacements don't quite work and are WIP. See genesis_theta_local.py for local testnet instructions.
 # Addresses
 # hy-hydrogen self-delegation account cosmos1lapm2cq4qjrl4fm5xcftfhg245m63d30mswfjp
 # hy-hydrogen operator address cosmosvaloper1lapm2cq4qjrl4fm5xcftfhg245m63d307y6u7j
@@ -24,6 +25,9 @@ NEW_CHAIN_ID = "theta-testnet"
 HYDROGEN_SELF_DELEGATION_ADDR = "cosmos1lapm2cq4qjrl4fm5xcftfhg245m63d30mswfjp"
 HYDROGEN_VAL_OP = "cosmosvaloper1lapm2cq4qjrl4fm5xcftfhg245m63d307y6u7j"
 HYDROGEN_VAL_ADDR = "E5C2AF993220B200C1C86E83BBE06A35F960B829"
+HYDROGEN_CONS_ADDR = "cosmosvalcons1uhp2lxfjyzeqpswgd6pmhcr2xhukpwpfheam88" 
+
+# Note that you can get the consensus addr by `gaiad keys parse $HYDROGEN_VAL_ADDR`
 
 GENESIS_ARCHIVE = "./exported_genesis.json"
 GENESIS_SHASUM = "3b541c005dfd79e7286630281422f95465cee8e89f2dce09119bdfb1b61850b0"
