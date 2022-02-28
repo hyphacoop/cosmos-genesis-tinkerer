@@ -13,9 +13,11 @@ import argparse
 import gzip
 import tarfile
 import requests
+import bisect
 
 # Default value is the cosmoshub-4 bonded token pool account
 TOKEN_BONDING_POOL_ADDRESS = "cosmos1fl48vsnmsdzcv85q5d2q4z5ajdha8yu34mf0eh"
+NOT_BONDED_TOKENS_POOL_ADDRESS = "cosmos1tygms3xhhs3yv487phx3dw4a95jn7t7lpm470r"
 
 DEFAULT_POWER = 6000000000
 POWER_TO_TOKENS = 1000000
@@ -215,6 +217,19 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
+    def swap_unbonding_time(self, unbonding_time="1814400s"):
+        """
+        Swapping staking unbonding_time
+        """
+
+        self.log_step(
+            "Swapping staking unbonding_time to " + unbonding_time)
+
+        staking_params = self.app_state["staking"]["params"]
+        staking_params["unbonding_time"] = unbonding_time
+
+        return self
+
     def swap_max_deposit_period(self, max_deposit_period="1209600s"):
         """
         Swapping governance max_deposit_period
@@ -274,7 +289,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         self.log_step("Swapping governance voting period to " + voting_period)
 
-        self.gov["voting_params"] = voting_period
+        self.gov["voting_params"]["voting_period"] = voting_period
 
         return self
 
@@ -344,7 +359,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_delegator(self, old_address, new_address):
+    def swap_delegator(self, old_address, new_address, old_pubkey, new_pubkey):
         """
         Swaps out an exsiting delegator with a new one
         """
@@ -362,6 +377,8 @@ class GenesisTinker:  # pylint: disable=R0904
             try:
                 if account["address"] == old_address:
                     account["address"] = new_address
+                    if account["pub_key"]["key"] == old_pubkey:
+                        account["pub_key"]["key"] = new_pubkey
                     found_account = True
                     break
             except KeyError:
@@ -412,8 +429,8 @@ class GenesisTinker:  # pylint: disable=R0904
                 # Already exists, so we don't need to add it
                 return self
 
-        supplies.append({"denom": denom, "amount": amount})
-
+        # coins must be in ascending sorted order by denom
+        bisect.insort_right(supplies, {"denom": denom, "amount": str(amount)}, key=lambda x: x.get("denom")) 
         return self
 
     def increase_balance(self, address, increase=300000000, denom="uatom"):
@@ -439,8 +456,8 @@ class GenesisTinker:  # pylint: disable=R0904
                         had_coin = True
                         break
                 if not had_coin:
-                    balance["coins"].append(
-                        {"denom": denom, "amount": str(increase)})
+                    # coins must be in ascending sorted order by denom
+                    bisect.insort_right(balance["coins"], {"denom": denom, "amount": str(increase)}, key=lambda x: x.get("denom")) 
                 break
 
         if not found_balance:
@@ -472,7 +489,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_validator_power(self, validator_address, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
+    def increase_validator_power(self, operator_address, validator_address, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
         """
         Increase the staking power of a validator
         Also increases the last total power value
@@ -517,22 +534,96 @@ class GenesisTinker:  # pylint: disable=R0904
             if int(validator["power"]) < smallest_validator_power:
                 smallest_validator_index = index
                 smallest_validator_power = int(validator["power"])
+        
+        last_validator_powers = self.app_state["staking"]["last_validator_powers"]
+        for last_validator_power in last_validator_powers:
+            if last_validator_power["address"] == operator_address:
+                old_power = int(last_validator_power["power"])
+                new_power = old_power + power_increase
+                last_validator_power["power"] = str(new_power)
+                break
 
+        #TODO what happens if the validator is not in the validator set? 
+        """
         if not found_validator:
             if smallest_validator_power < power_increase:
                 self.log_step("Adding validator to validator set")
-                validators[smallest_validator_index]["power"] = str(
-                    power_increase)
+                # There are two ways we can do this, either increasing the number of validators or by replacing the smallest validator
+                 
+                # OPTION 1: INSERT NEW VALIDATOR
+
+                # self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
+                # validators.append({ "address": validator_address,
+                #    "name": name,
+                #    "power": str(power_increase),
+                #    "pub_key": {
+                #        "type": "tendermint/PubKeyEd25519",
+                #        "value": pub_key
+                #    }
+                # })
+                # new_last_total_power = last_total_power + power_increase
+
+                # OPTION 2: REPLACE SMALLEST VALIDATOR
+
                 validators[smallest_validator_index]["address"] = validator_address
+                smallest_validator_pub_key = validators[smallest_validator_index]["pub_key"]["value"]
                 validators[smallest_validator_index]["pub_key"]["value"] = pub_key
                 validators[smallest_validator_index]["name"] = name
+
+                # Also remove from staking validators
+                staking_validators = self.app_state["staking"]["validators"]
+                for staking_validator in staking_validators:
+                   if staking_validator["consensus_pubkey"]["key"] == smallest_validator_pub_key:
+                       smallest_validator_op_addr = staking_validator["operator_address"]
+                       if staking_validator["status"] == "BOND_STATUS_BONDED":
+                           self.log_step("Unbonding smallest validator")
+                           tokens_to_unbond = int(staking_validator["tokens"])
+                           staking_validator["status"] = "BOND_STATUS_UNBONDED"
+                           self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, -1*tokens_to_unbond)
+                           self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, tokens_to_unbond)
+                       break
+               
+                for staking_validator in staking_validators:
+                   if staking_validator["consensus_pubkey"]["key"] == pub_key:
+                       starting_delegator_shares = int(float(staking_validator["delegator_shares"]))
+                       break
+
+                # Also replace in last validator powers
+                # TODO: the +1 in the power increase is a hack. The validator we're working with has a self delegation of 1 atom from before.
+                last_validator_powers = self.app_state["staking"]["last_validator_powers"]
+                for last_validator_power in last_validator_powers:
+                   if last_validator_power["address"] == smallest_validator_op_addr:
+                       last_validator_power["address"] = operator_address
+                       last_validator_power["power"] = str(power_increase + 1)
+                       break
+
+                
+                validators[smallest_validator_index]["power"] = str(
+                   power_increase + 1)
                 new_last_total_power = last_total_power + \
-                    power_increase - smallest_validator_power
+                   power_increase + 1 - smallest_validator_power
+
+                # Add validator to slashing module
+                ## Signing infos
+                # signing_info = {}
+                # signing_info["address"] = 
+                #     {
+                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
+                # "validator_signing_info": {
+                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
+                #  "index_offset": "16874",
+                #  "jailed_until": "1970-01-01T00:00:00Z",
+                #  "missed_blocks_counter": "0",
+                #  "start_height": "5354927",
+                #  "tombstoned": false
+                #  }
+                #  }
+                
             else:
                 raise Exception(
                     'Could not add validator to validator set due to low power')
-        else:
-            new_last_total_power = last_total_power + power_increase
+        """       
+        new_last_total_power = last_total_power + power_increase
 
         self.app_state["staking"]["last_total_power"] = str(
             new_last_total_power)
@@ -553,9 +644,13 @@ class GenesisTinker:  # pylint: disable=R0904
         for validator in staking_validators:
             if validator["operator_address"] == operator_address:
                 old_amount = int(validator["tokens"])
+                if validator["status"] == "BOND_STATUS_UNBONDED":
+                    self.log_step("Changing bond status to BOND_STATUS_BONDED")
+                    validator["status"] = "BOND_STATUS_BONDED"
+                    self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, old_amount)
+                    self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, -1*old_amount)
                 new_amount = old_amount + increase
                 validator["tokens"] = str(new_amount)
-
                 old_shares = float(validator["delegator_shares"])
                 new_shares = old_shares + increase
                 validator["delegator_shares"] = str(
@@ -603,7 +698,7 @@ class GenesisTinker:  # pylint: disable=R0904
         self.increase_balance(token_bonding_pool_address, stake)
         self.increase_delegator_stake(delegator, stake)
         self.increase_validator_stake(operator_address, stake)
-        self.increase_validator_power(
+        self.increase_validator_power(operator_address,
             validator_address, int(stake/power_to_tokens))
 
         return self
