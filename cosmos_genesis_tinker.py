@@ -701,4 +701,11 @@ class GenesisTinker:  # pylint: disable=R0904
         self.increase_validator_power(operator_address,
             validator_address, int(stake/power_to_tokens))
 
+        delegations = self.app_state["staking"]["delegations"]
+
+        for delegation in delegations:
+            if delegation["delegator_address"] == delegator and delegation["validator_address"] == operator_address:
+                share_increase = float(stake)
+                self.log_step("Increasing delegations of "+ delegator + " with " + operator_address + " by " + str(share_increase))
+                delegation["shares"] = format(float(delegation["shares"]) + share_increase, ".18f")
         return self
