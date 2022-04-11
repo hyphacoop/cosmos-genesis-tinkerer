@@ -1,29 +1,44 @@
 # Cosmos Genesis Tinker
 
-⚠️ This genesis tinkerer is in active development. 
+A Python module for modifying Cosmos genesis files.
 
-You can get more docs by invoking `pydoc3 cosmos_genesis_tinker`.
+Use this tool to test how the network reacts to a given scenario. The available operations include (but are not limited to):
+* Swapping validators
+* Swapping delegators
+* Increasing balance
+* Increasing validator power
+* Increasing delegator stake to a validator
 
-TODO: 
-- Add the output to the README or it's own .md file
-- Swap delegators and validators are currently buggy. We're using sed script to pre-process genesis files to swap out keys.
+Full documentation for the module can be accessed with `pydoc cosmos_genesis_tinker`.
+
+⚠️ This project is in active development. 
 
 ## Setup
-**Prerequisite**: You'll need `python 3.10`
 
-1. Clone from github `git clone git@github.com:hyphacoop/cosmos-genesis-tinkerer.git`
-2. Change directory `cd cosmos-genesis-tinkerer`
-3. Create a python virtual environment `python3 -m venv .env`
-4. Source env shell vars  `source .env/bin/activate`
-5. Install requirements `pip install -r requirements.txt`
+### Requirements
+
+* Python 3.10
+
+1. Clone from github:  `git clone git@github.com:hyphacoop/cosmos-genesis-tinkerer.git`
+2. Change directory: `cd cosmos-genesis-tinkerer`
+3. Create a python virtual environment: `python3 -m venv .env`
+4. Source env shell vars:  `source .env/bin/activate`
+5. Install requirements: `pip install -r requirements.txt`
 
 ## Running a tinker file
 
-You can run the theta tinker file like this: ` ./genesis_theta.py --output new_genesis.json`
+You can run the theta tinker file like this:
+```
+./genesis_theta.py --output new_genesis.json
+```
 
 ## Developing
 
-Make sure you save required pip modules to requirements.txt whenever requirements change `pip freeze > requirements. txt`
+Save the required pip modules to `requirements.txt` whenever they change:
+```
+pip freeze > requirements. txt
+```
+
 ## API
 
 Tinkering with genesis files
