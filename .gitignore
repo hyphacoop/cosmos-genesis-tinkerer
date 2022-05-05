@@ -2,5 +2,6 @@
 __pycache__/
 
 # Environment
-.env/
-
+.*/
+tests/*json
+!tests/fresh_genesis.json

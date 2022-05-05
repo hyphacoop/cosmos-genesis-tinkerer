@@ -1,107 +1,363 @@
-#!/usr/bin/env python3
-
 """
-This module helps you configure Cosmos Chain genesis files for testnets.
-TODO: Docs for how to get a genesis file
+Genesis Tinker
+
+This module provides an interface for modifying Cosmos genesis files.
+
+1. Create a Genesis Tinker object specifying input and output files
+2. Create Delegator and Validator objects as required
+2. Add tasks
+3. Run tasks
+4. The specified output file will have the new configuration
+
+See fresh_genesis_tinker.py for an example.
 """
 
 import json
 from hashlib import sha256
 from zipfile import ZipFile
 from io import BytesIO
-import argparse
 import gzip
 import tarfile
-import requests
+import functools
 import bisect
-
-# Default value is the cosmoshub-4 bonded token pool account
-TOKEN_BONDING_POOL_ADDRESS = "cosmos1fl48vsnmsdzcv85q5d2q4z5ajdha8yu34mf0eh"
-NOT_BONDED_TOKENS_POOL_ADDRESS = "cosmos1tygms3xhhs3yv487phx3dw4a95jn7t7lpm470r"
-
-DEFAULT_POWER = 6000000000
-POWER_TO_TOKENS = 1000000
-DEFAULT_NAME = "hy-hydrogen"
-DEFAULT_PUBKEY = "1Lt+cRGXjtRDlQSoQ+DPWj/GNYOzl+0U+7BFAvruu5s="
+import shutil
+import subprocess
+import os
+import requests
 
 
-def _swap_address_in_list(old_address, new_address, validators):
-    found_validator = False
-    for validator in validators:
-        if validator["address"] == old_address:
-            validator["address"] = new_address
-            found_validator = True
-            break
-
-    if not found_validator:
-        raise Exception("Could not find validator address")
-
-
-class GenesisTinker:  # pylint: disable=R0904
+class Validator:
     """
-    This class gives you primitives for tinkering with Cosmos chain Genesis Files
+    Provides access functions for details
+    associated with a validator:
+    Self-delegation address
+    Self-delegation public key
+    Validator address
+    Validator public key
+    Validator operator address
+    Validator consensus address
+    """
+
+    def __init__(self):
+        """
+        Initializes all attributes to None
+        """
+        self._self_del_addr = None
+        self._self_del_pub = None
+        self._addr = None
+        self._pub = None
+        self._oper_addr = None
+        self._cons_addr = None
+
+    @property
+    def self_delegation_address(self):
+        """
+        Getter function for self_delegation_address
+        """
+        return self._self_del_addr
+
+    @self_delegation_address.setter
+    def self_delegation_address(self, addr):
+        self._self_del_addr = addr
+
+    @property
+    def self_delegation_public_key(self):
+        """
+        Getter function for self_delegation_public_key
+        """
+        return self._self_del_pub
+
+    @self_delegation_public_key.setter
+    def self_delegation_public_key(self, pub):
+        self._self_del_pub = pub
+
+    @property
+    def address(self):
+        """
+        Getter function for address
+        """
+        return self._addr
+
+    @address.setter
+    def address(self, addr):
+        self._addr = addr
+
+    @property
+    def public_key(self):
+        """
+        Getter function for public_key
+        """
+        return self._pub
+
+    @public_key.setter
+    def public_key(self, pub):
+        self._pub = pub
+
+    @property
+    def operator_address(self):
+        """
+        Getter function for operator_address
+        """
+        return self._oper_addr
+
+    @operator_address.setter
+    def operator_address(self, addr):
+        self._oper_addr = addr
+
+    @property
+    def consensus_address(self):
+        """
+        Getter function for consensus_address
+        """
+        return self._cons_addr
+
+    @consensus_address.setter
+    def consensus_address(self, addr):
+        self._cons_addr = addr
+
+
+class Delegator:
+    """
+    Provides access functions for details
+    associated with a delegator:
+    Public key
+    Address
+    """
+
+    def __init__(self):
+        """
+        Initializes all attributes to None
+        """
+        self._addr = None
+        self._pub = None
+
+    @property
+    def address(self):
+        """
+        Getter function for address
+        """
+        return self._addr
+
+    @address.setter
+    def address(self, addr):
+        self._addr = addr
+
+    @property
+    def public_key(self):
+        """
+        Getter function for public_key
+        """
+        return self._pub
+
+    @public_key.setter
+    def public_key(self, pub):
+        self._pub = pub
+
+
+class TinkerTaskList:
+    """
+    Provides access functions to the tasks to be performed:
+    add
+    tasks
+    next
+    """
+    _bytes_tasks = []
+    _json_tasks = []
+    _bytes_tasks_names = ('replace_validator', 'replace_delegator')
+    _phase = 'bytes'
+
+    def add(self, task):
+        """
+        Adds task to one of these two lists:
+        self._bytes_tasks if the task is in self._bytes_tasks_names
+        self._json_tasks otherwise
+        """
+        if task.func.__name__ in self._bytes_tasks_names:
+            self._bytes_tasks.append(task)
+        else:
+            self._json_tasks.append(task)
+
+    def tasks(self):
+        """
+        Returns the full task list
+        """
+        return self._bytes_tasks + self._json_tasks
+
+    def next(self):
+        """
+        Returns the next task in the queue
+        It sets the phase to json every time
+        it returns a json task.
+        """
+        if len(self._bytes_tasks) > 0:
+            return self._bytes_tasks.pop(0)
+        if len(self._json_tasks) > 0:
+            self._phase = 'json'
+            return self._json_tasks.pop(0)
+        return None
+
+    def phase(self):
+        """
+        Getter function for phase
+        """
+        return self._phase
+
+    def clear(self):
+        """
+        Resets the task lists and phase
+        """
+        self._bytes_tasks = []
+        self._json_tasks = []
+        self._phase = 'bytes'
+
+
+class GenesisTinker:  # pylint: disable=R0902,R0904
+    """
+    Provides primitives for modifying Cosmos genesis files
     """
     genesis = {}
-    should_log_steps = True
-    __step_count = 0
-    argparse = argparse.ArgumentParser(
-        description="Load and modify a cosmos genesis file")
+    _task_list = TinkerTaskList()
+    _step_count = 0
+    _phase = 'bytes'
+    _preprocessing = False
 
-    def __init__(self, default_input=None, default_shasum=None, default_output=None):
-        self.argparse.add_argument(
-            '--input', help="file path or HTTPS URL to the genesis file", default=default_input)
-        self.argparse.add_argument(
-            '--shasum', help="for verifying the genesis file on download", default=default_shasum)
-        self.argparse.add_argument(
-            '--output', help="path for the final genesis file", default=default_output)
+    def __init__(self,
+                 input_file: str = "genesis.json",
+                 shasum: str = "",
+                 output_file: str = "tinkered_genesis.json",
+                 preprocessing_file: str = "preprocessing.json"):
+        self.input_file = input_file
+        self.shasum = shasum
+        self.output_file = output_file
+        self.preprocessing_file = preprocessing_file
 
-        self.args = self.argparse.parse_args()
-
-    def get_app_state(self):
+    @property
+    def app_state(self):
         """
-        Get the app state from the genesis file
+        Get the app state from the loaded genesis file
         """
         return self.genesis["app_state"]
 
-    app_state = property(get_app_state)
-
-    def get_gov(self):
+    @property
+    def gov(self):
         """
-        Get the governance module state from the genesis file
+        Get the governance module state from the loaded genesis file
         """
         return self.app_state["gov"]
 
-    gov = property(get_gov)
-
-    def get_validators(self):
+    @property
+    def validators(self):
         """
-        Get the list of validators from the genesis file
+        Get the list of validators from the loaded genesis file
         """
         return self.genesis["validators"]
-
-    validators = property(get_validators)
-
-    def log_help(self):
-        """
-        Log help message to the console if the --help flag wasn't set
-        """
-        if 'help' not in self.args:
-            self.argparse.print_help()
 
     def log_step(self, message):
         """
         Log a message about the current steps.
         Automatically increments the step_count
         """
-
-        if not self.should_log_steps:
-            return -1
-
-        self.__step_count += 1
-        step_count = str(self.__step_count)
+        self._step_count += 1
+        step_count = str(self._step_count)
         print(step_count + ". " + message)
 
         return step_count
+
+    def add_task(self, new_task, **kwargs):
+        """
+        When a task is added, we check whether it's a
+        - string replacement
+        - json structure change
+        and append it to the relevant queue.
+        """
+        self._task_list.add(functools.partial(new_task, **kwargs))
+
+    def tasks(self):
+        """
+        Return task list from TinkerTaskList object
+        """
+        return self._task_list.tasks()
+
+    def run_tasks(self):
+        """
+        Run the list of tasks:
+        - All byte operations are done before the json ones
+        - All byte operations are done on a the pre-processing
+        """
+
+        while self._task_list.tasks():
+            task = self._task_list.next()
+            if self._task_list.phase() == 'json' and self._phase == 'bytes':
+                # load json only if required
+                self._phase = 'json'
+                self.auto_load()
+            task()
+
+        self._task_list.clear()
+
+        if self._phase == 'json':
+            self.save_file(self.output_file)
+        else:
+            shutil.copy2(self.preprocessing_file, self.output_file)
+
+    def create_preprocessing_file(self):
+        """
+        Creates a preprocessing json file in which
+        all byte replacement operations will take place.
+        """
+        self.log_step("Creating preprocessing file " +
+                      self.preprocessing_file)
+        self._preprocessing = True
+        shutil.copy2(self.input_file, self.preprocessing_file)
+
+    def replace_delegator(self, old_delegator: Delegator, new_delegator: Delegator):
+        """
+        Replace an existing delegator with the specified one.
+        old_delegator and new_delegator must be Delegator objects
+
+        This function will do a byte replacement on all instances of the old delegator data
+        and save the changes to the current pre_processing.json file.
+        """
+        if not self._preprocessing:
+            self.create_preprocessing_file()
+
+        self.log_step("Replacing delegator " + old_delegator.address +
+                      " with " + new_delegator.address)
+        # Replace every property of the delegator object
+        properties = [prop for prop in dir(Delegator) if prop[0] != '_']
+
+        for prop in properties:
+            subprocess.run([
+                'sed', '-i', 's%' +
+                getattr(old_delegator, prop) + '%' +
+                getattr(new_delegator, prop) + '%g',
+                self.preprocessing_file],
+                check=True)
+
+    def replace_validator(self, old_validator: Validator, new_validator: Validator):
+        """
+        Replace an existing validator with the specified one.
+        old_validator and new_validator must be Validator objects
+
+        This function will do a byte replacement on all instances of the old validator data
+        and save the changes to the current pre_processing.json file.
+        """
+        if not self._preprocessing:
+            self.create_preprocessing_file()
+
+        self.log_step("Replacing validator " + old_validator.address +
+                      " with " + new_validator.address)
+
+        # Replace every property of the validator object
+        properties = [prop for prop in dir(Validator) if prop[0] != '_']
+
+        for prop in properties:
+            subprocess.run([
+                'sed', '-i', 's%' +
+                getattr(old_validator, prop) + '%' +
+                getattr(new_validator, prop) + '%g',
+                self.preprocessing_file],
+                check=True)
 
     def load_file(self, path):
         """
@@ -112,6 +368,9 @@ class GenesisTinker:  # pylint: disable=R0904
 
         with open(path, "r", encoding="utf8") as file:
             self.genesis = json.load(file)
+
+        if os.path.isfile(self.preprocessing_file):
+            os.remove(self.preprocessing_file)
 
         return self
 
@@ -154,6 +413,7 @@ class GenesisTinker:  # pylint: disable=R0904
                     "Got invalid digest from remote file", got_digest, shasum)
 
         self.genesis = json.loads(content)
+        _phase = 'json'
 
         return self
 
@@ -164,8 +424,11 @@ class GenesisTinker:  # pylint: disable=R0904
         --shasum CLI fla gcan be used to specify a shasum to verify against
         """
 
-        input_name = self.args.input
-        shasum = self.args.shasum
+        if self._preprocessing:
+            input_name = self.preprocessing_file
+        else:
+            input_name = self.input_file
+            shasum = self.shasum
 
         if input_name is None:
             raise Exception(
@@ -178,32 +441,11 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self.load_file(input_name)
 
-    def auto_save(self):
-        """
-        Attempts to save the genesis file if the --output CLI arg has been specified
-        """
-
-        output_name = self.args.output
-
-        if output_name is not None:
-            self.log_step("Saving genesis file to " + output_name)
-            return self.save_file(output_name)
-
-        return False
-
     def generate_json(self):
         """
         Generates the JSON for the current genesis state
         """
         return json.dumps(self.genesis, indent=False)
-
-    def generate_shasum(self):
-        """
-        Generates a sha256 checksum of the genesis file (to verify later)
-        """
-        content = self.generate_json()
-        content_bytes = content.encode('utf-8')
-        return sha256(content_bytes).hexdigest()
 
     def save_file(self, path):
         """
@@ -217,7 +459,51 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_unbonding_time(self, unbonding_time="1814400s"):
+    def generate_shasum(self):
+        """
+        Generates a sha256 checksum of the genesis file (to verify later)
+        """
+        content = self.generate_json()
+        content_bytes = content.encode('utf-8')
+        return sha256(content_bytes).hexdigest()
+
+    def get_bonded_pool_address(self):
+        """
+        Look through .app_state.auth.accounts,
+        check for "name": "bonded_tokens_pool"
+        and return the address.
+        """
+        accounts = self.genesis['app_state']['auth']['accounts']
+        for acct in accounts:
+            if 'name' in acct.keys() and acct['name'] == 'bonded_tokens_pool':
+                return acct['base_account']['address']
+        return None
+
+    def get_not_bonded_pool_address(self):
+        """
+        Look through .app_state.auth.accounts,
+        check for "name": "not_bonded_tokens_pool"
+        and return the address.
+        """
+        accounts = self.genesis['app_state']['auth']['accounts']
+        for acct in accounts:
+            if 'name' in acct.keys() and acct['name'] == 'not_bonded_tokens_pool':
+                return acct['base_account']['address']
+        return None
+
+    def set_chain_id(self, chain_id: str):
+        """
+        Swap the chain ID with your own name
+        """
+
+        self.log_step(f'Changing chain id from \"{self.genesis["chain_id"]}\" to '
+                      f'"{chain_id}"')
+
+        self.genesis["chain_id"] = chain_id
+
+        return self
+
+    def set_unbonding_time(self, unbonding_time: str = "1814400s"):
         """
         Swapping staking unbonding_time
         """
@@ -230,7 +516,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_max_deposit_period(self, max_deposit_period="1209600s"):
+    def set_max_deposit_period(self, max_deposit_period: str = "1209600s"):
         """
         Swapping governance max_deposit_period
         """
@@ -243,7 +529,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_min_deposit(self, min_amount="64000000", denom="uatom"):
+    def set_min_deposit(self, min_amount: str = "64000000", denom: str = "uatom"):
         """
         Swap out the min deposit amount for governance.
         Creates a new amount if the denomination doesn't exist
@@ -269,7 +555,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_tally_param(self, parameter_name, value):
+    def set_tally_param(self, parameter_name: str, value: str):
         """
         Swap out tally parameters.
         parameter_name should be one of "quorum", "threshold", "veto_threshold"
@@ -282,7 +568,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_voting_period(self, voting_period="1209600s"):
+    def set_voting_period(self, voting_period: str = "1209600s"):
         """
         Swap out the voting period for the governance module
         """
@@ -293,134 +579,13 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def swap_chain_id(self, chain_id):
-        """
-        Swap the chain ID with your own name
-        """
-
-        self.log_step("Swapping chain id to " + chain_id)
-
-        self.genesis["chain_id"] = chain_id
-
-        return self
-
-    def swap_validator(self, old, new):
-        """
-        Swaps out an existing validator with a new one
-
-        `old` and `new` should contain the properties `pub_key`, `address`, and `consensus_address`
-        e.g.
-
-        old = {
-            "pub_key" : "Whatever",
-            "address": "Something",
-            "consensus_address": "cosmosvalcon..."
-        }
-        """
-
-        self.log_step("Swapping validator " + str(old) + " to " + str(new))
-
-        staking_validators = self.app_state["staking"]["validators"]
-        validators = self.validators
-        missed_blocks = self.app_state["slashing"]["missed_blocks"]
-        signing_infos = self.app_state["slashing"]["signing_infos"]
-
-        found_validator = False
-        for validator in validators:
-            if validator["pub_key"]["value"] == old["pub_key"]:
-                found_validator = True
-                validator["pub_key"]["value"] = new["pub_key"]
-                if validator["address"] != old["address"]:
-                    raise Exception(
-                        "Old address doesn't match old pub key")
-                validator["address"] = new["address"]
-                break
-
-        if not found_validator:
-            raise Exception("Could not find validator")
-
-        found_validator = False
-        for validator in staking_validators:
-            if validator["consensus_pubkey"]["key"] == old["pub_key"]:
-                validator["consensus_pubkey"]["key"] = new["pub_key"]
-                found_validator = True
-                break
-
-        if not found_validator:
-            raise Exception("Could not find validator staking")
-
-        old_consensus_address = old["consensus_address"]
-        new_consensus_address = new["consensus_address"]
-
-        _swap_address_in_list(
-            old_consensus_address, new_consensus_address, missed_blocks)
-        _swap_address_in_list(
-            old_consensus_address, new_consensus_address, signing_infos)
-
-        return self
-
-    def swap_delegator(self, old_address, new_address, old_pubkey, new_pubkey):
-        """
-        Swaps out an exsiting delegator with a new one
-        """
-
-        self.log_step("Swapping delegator address " +
-                      old_address + " to " + new_address)
-
-        accounts = self.app_state["auth"]["accounts"]
-        balances = self.app_state["bank"]["balances"]
-        delegations = self.app_state["staking"]["delegations"]
-        starting_infos = self.app_state["distribution"]["delegator_starting_infos"]
-
-        found_account = False
-        for account in accounts:
-            try:
-                if account["address"] == old_address:
-                    account["address"] = new_address
-                    if account["pub_key"]["key"] == old_pubkey:
-                        account["pub_key"]["key"] = new_pubkey
-                    found_account = True
-                    break
-            except KeyError:
-                pass
-
-        if not found_account:
-            raise Exception("Could not find old account address")
-
-        found_balance = False
-        for balance in balances:
-            if balance["address"] == old_address:
-                balance["address"] = new_address
-                found_balance = True
-                break
-
-        if not found_balance:
-            raise Exception('Could not find old balance')
-
-        found_delegation = False
-        for delegation in delegations:
-            if delegation["delegator_address"] == old_address:
-                delegation["delegator_address"] = new_address
-                found_delegation = True
-                break
-
-        if not found_delegation:
-            raise Exception("Could not find old delegator stake")
-
-        for info in starting_infos:
-            if info["delegator_address"] == old_address:
-                info["delegator_address"] = new_address
-                break
-
-        return self
-
-    def create_coin(self, denom, amount="0"):
+    def create_coin(self, denom: str, amount: str = '0'):
         """
         Creates a new coin based on a given name if it doesn't exist
         """
 
         self.log_step("Creating new coin " + denom +
-                      " valued at " + str(amount))
+                      " valued at " + amount)
 
         supplies = self.app_state["bank"]["supply"]
 
@@ -430,43 +595,12 @@ class GenesisTinker:  # pylint: disable=R0904
                 return self
 
         # coins must be in ascending sorted order by denom
-        bisect.insort_right(supplies, {"denom": denom, "amount": str(amount)}, key=lambda x: x.get("denom")) 
+        bisect.insort_right(supplies,
+                            {'amount': amount, 'denom': denom},
+                            key=lambda x: x['denom'])
         return self
 
-    def increase_balance(self, address, increase=300000000, denom="uatom"):
-        """
-        Increases the balance of a person and also the overall supply of uatom
-        """
-
-        self.log_step("Increasing balance of " + address +
-                      " by " + str(increase) + " " + denom)
-
-        balances = self.app_state["bank"]["balances"]
-
-        found_balance = False
-        for balance in balances:
-            if balance["address"] == address:
-                found_balance = True
-                had_coin = False
-                for coin in balance["coins"]:
-                    if coin["denom"] == denom:
-                        old_amount = int(coin["amount"])
-                        new_amount = old_amount + increase
-                        coin["amount"] = str(new_amount)
-                        had_coin = True
-                        break
-                if not had_coin:
-                    # coins must be in ascending sorted order by denom
-                    bisect.insort_right(balance["coins"], {"denom": denom, "amount": str(increase)}, key=lambda x: x.get("denom")) 
-                break
-
-        if not found_balance:
-            raise Exception('Could not find balance for address')
-
-        self.increase_supply(increase, denom)
-        return self
-
-    def increase_supply(self, increase, denom="uatom"):
+    def increase_supply(self, increase: int, denom="uatom"):
         """
         Increase the total supply of coins of a given denomination
         """
@@ -485,11 +619,53 @@ class GenesisTinker:  # pylint: disable=R0904
                 break
 
         if not found_coin:
-            self.create_coin(denom, increase)
+            self.create_coin(denom, str(increase))
 
         return self
 
-    def increase_validator_power(self, operator_address, validator_address, power_increase=DEFAULT_POWER, name=DEFAULT_NAME, pub_key=DEFAULT_PUBKEY):
+    def increase_balance(self, address: str, amount: int = 300000000, denom: str = 'uatom'):
+        """
+        Increases the balance of an account
+        and the overall supply of uatom by the same amount
+        """
+
+        self.log_step("Increasing balance of " + address +
+                      " by " + str(amount) + " " + denom)
+
+        balances = self.app_state["bank"]["balances"]
+
+        found_balance = False
+        for balance in balances:
+            if balance["address"] == address:
+                found_balance = True
+                had_coin = False
+                for coin in balance["coins"]:
+                    if coin["denom"] == denom:
+                        old_amount = int(coin["amount"])
+                        new_amount = old_amount + amount
+                        coin["amount"] = str(new_amount)
+                        had_coin = True
+                        break
+                if not had_coin:
+                    # coins must be in ascending sorted order by denom
+                    bisect.insort_right(balance["coins"],
+                                        {"denom": denom,
+                                         "amount": str(amount)},
+                                        key=lambda x: x['denom'])
+                break
+
+        if not found_balance:
+            raise Exception('Could not find balance for address')
+
+        self.increase_supply(amount, denom)
+        return self
+
+    def increase_validator_power(self,
+                                 operator_address,
+                                 validator_address,
+                                 power_increase):
+        #  name=_name,
+        #  pub_key=_pubkey):
         """
         Increase the staking power of a validator
         Also increases the last total power value
@@ -518,7 +694,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         validators = self.validators
 
-        found_validator = False
+        # found_validator = False
         smallest_validator_index = 0
         smallest_validator_power = int(
             validators[smallest_validator_index]["power"])
@@ -530,11 +706,11 @@ class GenesisTinker:  # pylint: disable=R0904
                 old_power = int(validator["power"])
                 new_power = old_power + power_increase
                 validator["power"] = str(int(new_power))
-                found_validator = True
+                # found_validator = True
             if int(validator["power"]) < smallest_validator_power:
                 smallest_validator_index = index
                 smallest_validator_power = int(validator["power"])
-        
+
         last_validator_powers = self.app_state["staking"]["last_validator_powers"]
         for last_validator_power in last_validator_powers:
             if last_validator_power["address"] == operator_address:
@@ -543,86 +719,12 @@ class GenesisTinker:  # pylint: disable=R0904
                 last_validator_power["power"] = str(new_power)
                 break
 
-        #TODO what happens if the validator is not in the validator set? 
-        """
-        if not found_validator:
-            if smallest_validator_power < power_increase:
-                self.log_step("Adding validator to validator set")
-                # There are two ways we can do this, either increasing the number of validators or by replacing the smallest validator
-                 
-                # OPTION 1: INSERT NEW VALIDATOR
+        # TODO what happens if the validator is not in the validator set?
+        # There are two ways we can do this, either increasing the number of validators or
+        # by replacing the smallest validator
+        # OPTION 1: INSERT NEW VALIDATOR
+        # OPTION 2: REPLACE SMALLEST VALIDATOR
 
-                # self.app_state['staking']['params']['max_validators'] = int(self.app_state['staking']['params']['max_validators'] + 1)
-                # validators.append({ "address": validator_address,
-                #    "name": name,
-                #    "power": str(power_increase),
-                #    "pub_key": {
-                #        "type": "tendermint/PubKeyEd25519",
-                #        "value": pub_key
-                #    }
-                # })
-                # new_last_total_power = last_total_power + power_increase
-
-                # OPTION 2: REPLACE SMALLEST VALIDATOR
-
-                validators[smallest_validator_index]["address"] = validator_address
-                smallest_validator_pub_key = validators[smallest_validator_index]["pub_key"]["value"]
-                validators[smallest_validator_index]["pub_key"]["value"] = pub_key
-                validators[smallest_validator_index]["name"] = name
-
-                # Also remove from staking validators
-                staking_validators = self.app_state["staking"]["validators"]
-                for staking_validator in staking_validators:
-                   if staking_validator["consensus_pubkey"]["key"] == smallest_validator_pub_key:
-                       smallest_validator_op_addr = staking_validator["operator_address"]
-                       if staking_validator["status"] == "BOND_STATUS_BONDED":
-                           self.log_step("Unbonding smallest validator")
-                           tokens_to_unbond = int(staking_validator["tokens"])
-                           staking_validator["status"] = "BOND_STATUS_UNBONDED"
-                           self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, -1*tokens_to_unbond)
-                           self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, tokens_to_unbond)
-                       break
-               
-                for staking_validator in staking_validators:
-                   if staking_validator["consensus_pubkey"]["key"] == pub_key:
-                       starting_delegator_shares = int(float(staking_validator["delegator_shares"]))
-                       break
-
-                # Also replace in last validator powers
-                # TODO: the +1 in the power increase is a hack. The validator we're working with has a self delegation of 1 atom from before.
-                last_validator_powers = self.app_state["staking"]["last_validator_powers"]
-                for last_validator_power in last_validator_powers:
-                   if last_validator_power["address"] == smallest_validator_op_addr:
-                       last_validator_power["address"] = operator_address
-                       last_validator_power["power"] = str(power_increase + 1)
-                       break
-
-                
-                validators[smallest_validator_index]["power"] = str(
-                   power_increase + 1)
-                new_last_total_power = last_total_power + \
-                   power_increase + 1 - smallest_validator_power
-
-                # Add validator to slashing module
-                ## Signing infos
-                # signing_info = {}
-                # signing_info["address"] = 
-                #     {
-                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
-                # "validator_signing_info": {
-                # "address": "cosmosvalcons1l7pavqz4gkswt8qve3y7cqz59h54frlgytgq6y",
-                #  "index_offset": "16874",
-                #  "jailed_until": "1970-01-01T00:00:00Z",
-                #  "missed_blocks_counter": "0",
-                #  "start_height": "5354927",
-                #  "tombstoned": false
-                #  }
-                #  }
-                
-            else:
-                raise Exception(
-                    'Could not add validator to validator set due to low power')
-        """       
         new_last_total_power = last_total_power + power_increase
 
         self.app_state["staking"]["last_total_power"] = str(
@@ -630,7 +732,7 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_validator_stake(self, operator_address, increase=DEFAULT_POWER*POWER_TO_TOKENS):
+    def increase_validator_stake(self, operator_address, increase):
         """
         Increases the stake of a validator as well as its delegator_shares
         """
@@ -647,8 +749,10 @@ class GenesisTinker:  # pylint: disable=R0904
                 if validator["status"] == "BOND_STATUS_UNBONDED":
                     self.log_step("Changing bond status to BOND_STATUS_BONDED")
                     validator["status"] = "BOND_STATUS_BONDED"
-                    self.increase_balance(TOKEN_BONDING_POOL_ADDRESS, old_amount)
-                    self.increase_balance(NOT_BONDED_TOKENS_POOL_ADDRESS, -1*old_amount)
+                    self.increase_balance(
+                        self.get_bonded_pool_address(), old_amount)
+                    self.increase_balance(
+                        self.get_not_bonded_pool_address(), -1*old_amount)
                 new_amount = old_amount + increase
                 validator["tokens"] = str(new_amount)
                 old_shares = float(validator["delegator_shares"])
@@ -664,19 +768,19 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_delegator_stake(self, delegator_address, increase=DEFAULT_POWER*POWER_TO_TOKENS):
+    def increase_delegator_stake(self, delegator: Delegator, increase: int):
         """
         Increases the stake for a delegator
         """
 
         self.log_step("Increasing delegator stake of " +
-                      delegator_address + " by " + str(increase))
+                      delegator.address + " by " + str(increase))
 
         starting_infos = self.app_state["distribution"]["delegator_starting_infos"]
 
         found_stake = False
         for info in starting_infos:
-            if info["delegator_address"] == delegator_address:
+            if info["delegator_address"] == delegator.address:
                 old_stake = float(info["starting_info"]["stake"])
                 new_stake = old_stake + increase
                 info["starting_info"]["stake"] = str(
@@ -689,23 +793,34 @@ class GenesisTinker:  # pylint: disable=R0904
 
         return self
 
-    def increase_delegator_stake_to_validator(self, delegator, operator_address, validator_address, stake, power_to_tokens=POWER_TO_TOKENS, token_bonding_pool_address=TOKEN_BONDING_POOL_ADDRESS):  # pylint: disable=C0301
+    def increase_delegator_stake_to_validator(self,
+                                              delegator: Delegator,
+                                              validator: Validator,
+                                              increase: dict):
         """
         Increase a delegator's stake to a validator.
-        Includes increasing token bonding pool balance and validator power
+        Includes increasing token bonding pool balance and validator power.
+        The "increase" argument is a dictionary with keys 'amount' and 'denom'.
         """
-
-        self.increase_balance(token_bonding_pool_address, stake)
-        self.increase_delegator_stake(delegator, stake)
-        self.increase_validator_stake(operator_address, stake)
-        self.increase_validator_power(operator_address,
-            validator_address, int(stake/power_to_tokens))
+        power_to_tokens = 1000000
+        self.increase_balance(address=self.get_bonded_pool_address(),
+                              amount=increase['amount'], denom=increase['denom'])
+        self.increase_delegator_stake(
+            delegator=delegator, increase=increase['amount'])
+        self.increase_validator_stake(
+            operator_address=validator.operator_address, increase=increase['amount'])
+        self.increase_validator_power(operator_address=validator.operator_address,
+                                      validator_address=validator.address,
+                                      power_increase=int(increase['amount'] / power_to_tokens))
 
         delegations = self.app_state["staking"]["delegations"]
 
         for delegation in delegations:
-            if delegation["delegator_address"] == delegator and delegation["validator_address"] == operator_address:
-                share_increase = float(stake)
-                self.log_step("Increasing delegations of "+ delegator + " with " + operator_address + " by " + str(share_increase))
-                delegation["shares"] = format(float(delegation["shares"]) + share_increase, ".18f")
+            if delegation["delegator_address"] == delegator.address and \
+               delegation["validator_address"] == validator.operator_address:
+                share_increase = float(increase['amount'])
+                self.log_step("Increasing delegations of " + delegator.address +
+                              " with " + validator.operator_address + " by " + str(share_increase))
+                delegation["shares"] = format(
+                    float(delegation["shares"]) + share_increase, ".18f")
         return self
