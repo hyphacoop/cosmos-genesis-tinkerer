@@ -2,6 +2,10 @@
 __pycache__/
 
 # Environment
-.*/
+.env
+.vscode
+
+# Tests
+.pytest_cache/
 tests/*json
 !tests/fresh_genesis.json
