@@ -30,7 +30,7 @@ COINBASE_VALIDATOR_OP_ADDRESS = "cosmosvaloper1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu5
 
 COINBASE_PUBKEY = "NK3/1mb/ToXmxlcyCK8HYyudDn4sttz1sXyyD+42x7I="
 COINBASE_ADDRESS = "F8C01C0681578AA700D736D675C9992065F65E3E"
-COINBASE_CONS_ADDRESS = "cosmosvalcons1lrqpcp5p2792wqxhxmt8tjveypjlvh378gkddu" 
+COINBASE_CONS_ADDRESS = "cosmosvalcons1lrqpcp5p2792wqxhxmt8tjveypjlvh378gkddu"
 
 # We'll be swapping it out with our earth node
 EARTH_SELF_DELEGATION_ADDR = "cosmos10v6wvdenee8r9l6wlsphcgur2ltl8ztkvhc8fw"
@@ -39,19 +39,25 @@ EARTH_VALIDATOR_OP_ADDRESS = "cosmosvaloper10v6wvdenee8r9l6wlsphcgur2ltl8ztkfrvj
 
 EARTH_PUBKEY = "2j+NkKQHAxu36vduy1sDHJZIeZji7nxnmVIizv07MpE="
 EARTH_ADDRESS = "A8A7A64D1F8FFAF2A5332177F777A5816036D65A"
-EARTH_CONS_ADDRESS = "cosmosvalcons14zn6vngl3la09ffny9mlwaa9s9srd4j65cqc54" 
+EARTH_CONS_ADDRESS = "cosmosvalcons14zn6vngl3la09ffny9mlwaa9s9srd4j65cqc54"
 
 PREPROCESSED_FILE = GENESIS_ARCHIVE + ".preprocessed.json"
 
 shutil.copy2(GENESIS_ARCHIVE, PREPROCESSED_FILE)
 
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_SELF_DELEGATION_ADDR    + "%" + EARTH_SELF_DELEGATION_ADDR   + "%g",PREPROCESSED_FILE])
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_SELF_DELEGATION_PUBKEY  + "%" + EARTH_SELF_DELEGATION_PUBKEY + "%g",PREPROCESSED_FILE])
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_VALIDATOR_OP_ADDRESS    + "%" + EARTH_VALIDATOR_OP_ADDRESS   + "%g",PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_SELF_DELEGATION_ADDR +
+                "%" + EARTH_SELF_DELEGATION_ADDR + "%g", PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_SELF_DELEGATION_PUBKEY +
+                "%" + EARTH_SELF_DELEGATION_PUBKEY + "%g", PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_VALIDATOR_OP_ADDRESS +
+                "%" + EARTH_VALIDATOR_OP_ADDRESS + "%g", PREPROCESSED_FILE])
 
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_PUBKEY       + "%" + EARTH_PUBKEY       + "%g",PREPROCESSED_FILE])
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_ADDRESS      + "%" + EARTH_ADDRESS      + "%g",PREPROCESSED_FILE])
-subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_CONS_ADDRESS + "%" + EARTH_CONS_ADDRESS + "%g",PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_PUBKEY +
+                "%" + EARTH_PUBKEY + "%g", PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_ADDRESS +
+                "%" + EARTH_ADDRESS + "%g", PREPROCESSED_FILE])
+subprocess.call(["sed", "-i", ".bak", "s%" + COINBASE_CONS_ADDRESS +
+                "%" + EARTH_CONS_ADDRESS + "%g", PREPROCESSED_FILE])
 
 genesis = cosmos_genesis_tinker.GenesisTinker(
     default_input=PREPROCESSED_FILE)
@@ -76,10 +82,11 @@ genesis.increase_balance(EARTH_SELF_DELEGATION_ADDR,
 genesis.increase_balance(EARTH_SELF_DELEGATION_ADDR,
                          EPSILON_LIQUID_TOKEN_INCREASE, "epsilon")
 
-genesis.increase_delegator_stake_to_validator(EARTH_SELF_DELEGATION_ADDR, EARTH_VALIDATOR_OP_ADDRESS, EARTH_ADDRESS, UATOM_STAKE_INCREASE)
+genesis.increase_delegator_stake_to_validator(
+    EARTH_SELF_DELEGATION_ADDR, EARTH_VALIDATOR_OP_ADDRESS, EARTH_ADDRESS, UATOM_STAKE_INCREASE)
 
 # Swap governance parameters for convenience
-genesis.swap_min_deposit("1") # 1 uatom
+genesis.swap_min_deposit("1")  # 1 uatom
 genesis.swap_tally_param("quorum", "0.000000000000000001")
 genesis.swap_tally_param("threshold", "0.000000000000000001")
 genesis.swap_voting_period("60s")

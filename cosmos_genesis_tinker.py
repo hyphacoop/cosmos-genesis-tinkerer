@@ -165,6 +165,7 @@ class TinkerTaskList:
     _json_tasks = []
     _bytes_tasks_names = ('replace_validator', 'replace_delegator')
     _phase = 'bytes'
+    _user_tasks = []
 
     def add(self, task):
         """
@@ -172,10 +173,17 @@ class TinkerTaskList:
         self._bytes_tasks if the task is in self._bytes_tasks_names
         self._json_tasks otherwise
         """
+        self._user_tasks.append(task)
         if task.func.__name__ in self._bytes_tasks_names:
             self._bytes_tasks.append(task)
         else:
             self._json_tasks.append(task)
+
+    def user_tasks(self):
+        """
+        Returns the tasks in the order submitted by the user
+        """
+        return self._user_tasks
 
     def tasks(self):
         """
@@ -206,6 +214,7 @@ class TinkerTaskList:
         """
         Resets the task lists and phase
         """
+        self._user_tasks = []
         self._bytes_tasks = []
         self._json_tasks = []
         self._phase = 'bytes'
@@ -278,12 +287,23 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         """
         return self._task_list.tasks()
 
+    def clear_tasks(self):
+        """
+        Clear all lists in the TinkerTaskList object
+        """
+        self._task_list.clear()
+
     def run_tasks(self):
         """
         Run the list of tasks:
         - All byte operations are done before the json ones
         - All byte operations are done on a the pre-processing
         """
+
+        if self._task_list.tasks() != self._task_list.user_tasks():
+            print('Invalid sequence: replace_validator and replace_delegator '
+                  'must come before all other functions')
+            return True
 
         while self._task_list.tasks():
             task = self._task_list.next()

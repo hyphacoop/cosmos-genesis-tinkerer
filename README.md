@@ -9,8 +9,6 @@ Use this tool to test how the network reacts to a given scenario. The available 
 * Increasing validator power
 * Increasing delegator stake to a validator
 
-Full documentation for the module can be accessed with `pydoc cosmos_genesis_tinker`.
-
 ⚠️ This project is in active development. 
 
 ## Setup
@@ -27,38 +25,42 @@ Full documentation for the module can be accessed with `pydoc cosmos_genesis_tin
 
 ## Running a tinker file
 
-You can run the theta tinker file like this:
+You can run the fresh genesis tinker file like this:
 ```
-./genesis_theta.py --output new_genesis.json
-```
-
-## Developing
-
-Save the required pip modules to `requirements.txt` whenever they change:
-```
-pip freeze > requirements. txt
+./fresh_genesis_tinker.py
 ```
 
-## API
+It will read the `fresh_genesis.json` file from the `tests` folder and generate `tinkered_genesis.json`.
 
-Tinkering with genesis files
+## Usage
+
+Access full module documentation with `pydoc cosmos_genesis_tinker`.
+
+Example:
 
 ```python
-import cosmos_genesis_tinker
+from cosmos_genesis_tinker import GenesisTinker, Delegator
 
-genesis = cosmos_genesis_tinker.GenesisTinker()
+tinker = cosmos_genesis_tinker.GenesisTinker(
+    input_file='input.json',
+    output_file='output.json')
 
-genesis.load_file(file)
-genesis.save_file(file)
-old  = {
-"pub_key": "",
-"address": "",
-"consensus_address": ""
-}
-genesis.swap_validator(old, new)
-genesis.swap_delegator(old_adddress, new_address)
-genesis.increase_balance(address, increase=300000000, denom="uatom")
-genesis.increase_validator_power(validator_address, power_increase=DEFAULT_POWER)
-genesis.increase_validator_stake(operator_address, increase=DEFAULT_POWER*POWER_TO_TOKENS)
-genesis.increase_delegator_stake(delegator_address, increase=DEFAULT_POWER*POWER_TO_TOKENS)
+old_del = Delegator()
+old_del.address = 'cosmos123'
+old_del.public_key = 'abcxyz'
+
+new_del = Delegator()
+new_del.address = 'cosmos456'
+new_del.public_key = 'defuvw'
+
+tinker.add_task(tinker.replace_delegator,
+    old_delegator=old_del,
+    new_delegator=new_del)
+    
+tinker.add_task(tinker.increase_balance,
+    address=new_delegator.address,
+    amount=9000000000,
+    denom='uatom')
+
+tinker.run_tasks()
 ```

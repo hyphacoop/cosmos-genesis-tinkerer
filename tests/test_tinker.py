@@ -8,17 +8,19 @@ python -m pytest -v --genesis stateful
 import pytest
 import json
 import time
+import gzip
 from functools import partial
 from cosmos_genesis_tinker import GenesisTinker, \
-                                  TinkerTaskList, \
-                                  Validator, \
-                                  Delegator
+    TinkerTaskList, \
+    Validator, \
+    Delegator
+
 
 @pytest.fixture
 def input_data(genesis_option):
     if genesis_option == 'fresh':
         # Files and genesis
-        infile = 'examples/fresh_genesis.json'
+        infile = 'tests/fresh_genesis.json'
         with open(infile, 'r',  encoding='utf8') as genesis_file:
             input_genesis = json.load(genesis_file)
         outfile = 'tests/tinkered_genesis.json'
@@ -44,9 +46,16 @@ def input_data(genesis_option):
 
     elif genesis_option == 'stateful':
         # Files and genesis
-        infile = 'tests/cosmoshub_genesis.json'
-        with open(infile, 'r',  encoding='utf8') as genesis_file:
+
+        with gzip.open('tests/stateful_genesis.json.gz', 'r') as file:
+            content = file.read()
+            outfile = open('tests/stateful_genesis.json', 'wb')
+            outfile.write(content)
+        with open('tests/stateful_genesis.json', 'r', encoding='utf8') as genesis_file:
             input_genesis = json.load(genesis_file)
+        infile = 'tests/stateful_genesis.json'
+        # with open(infile, 'r',  encoding='utf8') as genesis_file:
+        # input_genesis = json.load(genesis_file)
         outfile = 'tests/tinkered_genesis.json'
 
         # Replace delegator data
@@ -79,42 +88,74 @@ def input_data(genesis_option):
     }
     yield data_dict
 
-@pytest.mark.skip
-def test_task_order():
-    ttl = TinkerTaskList()
-    ttl.add(partial(GenesisTinker().replace_validator, old_validator='Alpha',new_validator='Beta'))
-    ttl.add(partial(GenesisTinker().set_chain_id, chain_id='testnet'))
-    ttl.add(partial(GenesisTinker().replace_delegator, old_delegator='Charlie',new_delegator='Delta'))
 
-    task = ttl.next()
-    assert task.func.__name__ == 'replace_validator'
-    task = ttl.next()
-    assert task.func.__name__ == 'replace_delegator'
-    task = ttl.next()
-    assert task.func.__name__ == 'set_chain_id'
-
-@pytest.mark.skip
-def test_set_chain_id(input_data):
+def test_task_order(input_data):
     data = input_data
-    
+    new_del = Delegator()
+    new_del.address = 'cosmos123'
+    new_del.public_key = 'key456'
+    new_val = Validator()
+    new_val.self_delegation_address = 'a'
+    new_val.self_delegation_public_key = 'b'
+    new_val.address = 'c'
+    new_val.public_key = 'd'
+    new_val.operator_address = 'e'
+    new_val.consensus_address = 'f'
+
     in_filename = data['input_file']
     out_filename = data['output_file']
     new_name = 'tinkered-chain'
 
     start_time = time.time()
-    
+
+    gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
+    gentink.add_task(gentink.replace_delegator,
+                     old_delegator=data['target_delegator'],
+                     new_delegator=new_del)
+    gentink.add_task(gentink.set_chain_id, chain_id=new_name)
+    gentink.add_task(gentink.replace_validator,
+                     old_validator=data['target_validator'],
+                     new_validator=new_val)
+    sad_result = gentink.run_tasks()
+    gentink.clear_tasks()
+
+    gentink2 = GenesisTinker(input_file=in_filename, output_file=out_filename)
+    gentink2.add_task(gentink2.replace_delegator,
+                      old_delegator=data['target_delegator'],
+                      new_delegator=new_del)
+    gentink2.add_task(gentink2.replace_validator,
+                      old_validator=data['target_validator'],
+                      new_validator=new_val)
+    gentink2.add_task(gentink2.set_chain_id, chain_id=new_name)
+    happy_result = gentink2.run_tasks()
+
+    end_time = time.time()
+
+    assert sad_result
+    assert happy_result is None
+
+
+def test_set_chain_id(input_data):
+    data = input_data
+
+    in_filename = data['input_file']
+    out_filename = data['output_file']
+    new_name = 'tinkered-chain'
+
+    start_time = time.time()
+
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.set_chain_id, chain_id=new_name)
     gentink.run_tasks()
 
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
-    
+
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
     assert new_genesis['chain_id'] == new_name
 
-@pytest.mark.skip
+
 def test_set_unbonding_time(input_data):
     data = (input_data)
 
@@ -122,18 +163,17 @@ def test_set_unbonding_time(input_data):
     in_filename = data['input_file']
     out_filename = data['output_file']
     start_time = time.time()
-    
-    gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)    
+
+    gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.set_unbonding_time, unbonding_time=new_time)
     gentink.run_tasks()
 
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
-    
+
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
-    assert new_genesis['app_state']['staking']\
-                      ['params']['unbonding_time'] == new_time
+    assert new_genesis['app_state']['staking']['params']['unbonding_time'] == new_time
 
 
 def test_governance_functions(input_data):
@@ -150,42 +190,39 @@ def test_governance_functions(input_data):
     new_time = '5s'
     new_amount = '1000000'
     new_denom = 'uatom'
-    new_params = [{'name':'quorum','value':"0.000000000000000001"},
-                  {'name':'threshold','value':"0.000000000000000001"}]
+    new_params = [{'name': 'quorum', 'value': "0.000000000000000001"},
+                  {'name': 'threshold', 'value': "0.000000000000000001"}]
     start_time = time.time()
-    
-    
+
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
-    gentink.add_task(gentink.set_max_deposit_period, max_deposit_period=new_time)
+    gentink.add_task(gentink.set_max_deposit_period,
+                     max_deposit_period=new_time)
     gentink.add_task(gentink.set_min_deposit,
                      min_amount=new_amount,
                      denom=new_denom)
     for parameter in new_params:
         gentink.add_task(gentink.set_tally_param,
-                    parameter_name=parameter['name'],
-                    value=parameter['value'])
+                         parameter_name=parameter['name'],
+                         value=parameter['value'])
     gentink.run_tasks()
 
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
-    
+
     # max_deposit_period
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
-    assert new_genesis['app_state']['gov']\
-                      ['deposit_params']['max_deposit_period'] == new_time
+    assert new_genesis['app_state']['gov']['deposit_params']['max_deposit_period'] == new_time
 
     # min_deposit
-    min_deps = new_genesis['app_state']['gov']\
-                        ['deposit_params']['min_deposit']
+    min_deps = new_genesis['app_state']['gov']['deposit_params']['min_deposit']
     for deposit in min_deps:
         if deposit['denom'] == new_denom:
             assert deposit['amount'] == new_amount
             break
-    
+
     # tally_param
-    tally_params = new_genesis['app_state']['gov']\
-                        ['tally_params']
+    tally_params = new_genesis['app_state']['gov']['tally_params']
     for parameter in new_params:
         assert tally_params[parameter['name']] == parameter['value']
 
@@ -198,16 +235,16 @@ def test_create_coin(input_data):
     new_denom = 'myco'
     new_amount = '9000'
     start_time = time.time()
-    
+
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.create_coin,
-                    denom=new_denom,
-                    amount=new_amount)
+                     denom=new_denom,
+                     amount=new_amount)
     gentink.run_tasks()
 
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
-    
+
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
     supply = new_genesis['app_state']['bank']['supply']
@@ -233,9 +270,9 @@ def test_replace_delegator(input_data):
 
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.replace_delegator,
-                             old_delegator=old_del,
-                             new_delegator=new_del)
-                             
+                     old_delegator=old_del,
+                     new_delegator=new_del)
+
     gentink.run_tasks()
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
@@ -248,11 +285,13 @@ def test_replace_delegator(input_data):
     # 1. Address would show up in:
     # app_state.auth.accounts where the account has type '/cosmos.auth.v1beta1.BaseAccount
     accounts = old_genesis['app_state']['auth']['accounts']
-    base_accounts = [acct['address'] for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
+    base_accounts = [acct['address']
+                     for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
 
     if old_del.address in base_accounts:
         accounts = new_genesis['app_state']['auth']['accounts']
-        base_accounts = [acct['address'] for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
+        base_accounts = [acct['address']
+                         for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
         assert old_del.address not in base_accounts
         assert new_del.address in base_accounts
 
@@ -285,16 +324,16 @@ def test_replace_delegator(input_data):
 
     # 2. Public key would show up in:
     # app_state.auth.accounts where the account has type '/cosmos.auth.v1beta1.BaseAccount'
-    old_accounts = old_genesis['app_state']['auth']['accounts'] 
+    old_accounts = old_genesis['app_state']['auth']['accounts']
     for acct in old_accounts:
         if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount' \
-        and acct['address'] == old_del.address:
+                and acct['address'] == old_del.address:
             old_del_account = acct
     if old_del_account['pub_key']['key'] == old_del.public_key:
         accounts = new_genesis['app_state']['auth']['accounts']
         for acct in accounts:
             if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount' \
-            and acct['address'] == new_del.address:
+                    and acct['address'] == new_del.address:
                 new_del_account = acct
         assert new_del_account['pub_key']['key'] == new_del.public_key
 
@@ -313,12 +352,12 @@ def test_replace_validator(input_data):
     new_val.public_key = 'd'
     new_val.operator_address = 'e'
     new_val.consensus_address = 'f'
-    
+
     start_time = time.time()
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.replace_validator,
-                      old_validator = old_val,
-                      new_validator = new_val)
+                     old_validator=old_val,
+                     new_validator=new_val)
     gentink.run_tasks()
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
@@ -332,10 +371,12 @@ def test_replace_validator(input_data):
     # 1. Self delegation address would show up in:
     # app_state.auth.accounts where the account has type '/cosmos.auth.v1beta1.BaseAccount'
     accounts = old_genesis['app_state']['auth']['accounts']
-    base_accounts = [acct['address'] for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
+    base_accounts = [acct['address']
+                     for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
     if old_val.self_delegation_address in base_accounts:
         accounts = new_genesis['app_state']['auth']['accounts']
-        base_accounts = [acct['address'] for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
+        base_accounts = [acct['address']
+                         for acct in accounts if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount']
         assert old_val.self_delegation_address not in base_accounts
         assert new_val.self_delegation_address in base_accounts
 
@@ -368,19 +409,18 @@ def test_replace_validator(input_data):
 
     # 2. Self delegation public key would show up in:
     # app_state.auth.accounts where the account has type '/cosmos.auth.v1beta1.BaseAccount'
-    old_accounts = old_genesis['app_state']['auth']['accounts'] 
+    old_accounts = old_genesis['app_state']['auth']['accounts']
     for acct in old_accounts:
         if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount' \
-        and acct['address'] == old_val.self_delegation_address:
+                and acct['address'] == old_val.self_delegation_address:
             old_val_account = acct
     if old_val_account['pub_key']['key'] == old_val.self_delegation_public_key:
         accounts = new_genesis['app_state']['auth']['accounts']
         for acct in accounts:
             if acct['@type'] == '/cosmos.auth.v1beta1.BaseAccount' \
-            and acct['address'] == new_val.self_delegation_address:
+                    and acct['address'] == new_val.self_delegation_address:
                 new_val_account = acct
         assert new_val_account['pub_key']['key'] == new_val.self_delegation_public_key
-
 
     # 3. Validator address would show up in:
     # validators
@@ -392,10 +432,10 @@ def test_replace_validator(input_data):
 
     # 4. Validator public key would show up in:
     # app_state.staking.validators
-    validators = [val['consensus_pubkey']['key'] \
+    validators = [val['consensus_pubkey']['key']
                   for val in old_genesis['app_state']['staking']['validators']]
     if old_val.public_key in validators:
-        validators = [val['consensus_pubkey']['key'] \
+        validators = [val['consensus_pubkey']['key']
                       for val in new_genesis['app_state']['staking']['validators']]
         assert old_val.public_key not in validators
         assert new_val.public_key in validators
@@ -403,7 +443,8 @@ def test_replace_validator(input_data):
     # validators
     validators = [val['pub_key']['value'] for val in old_genesis['validators']]
     if old_val.public_key in validators:
-        validators = [val['pub_key']['value'] for val in new_genesis['validators']]
+        validators = [val['pub_key']['value']
+                      for val in new_genesis['validators']]
         assert old_val.public_key not in validators
         assert new_val.public_key in validators
 
@@ -434,7 +475,7 @@ def test_replace_validator(input_data):
         comms_addr = [comm['validator_address'] for comm in comms]
         assert old_val.operator_address not in comms_addr
         assert new_val.operator_address in comms_addr
-    
+
     # app_state.distribution.validator_accumulated_commissions
     rewards = old_genesis['app_state']['distribution']['validator_current_rewards']
     reward_addrs = [reward['validator_address'] for reward in rewards]
@@ -486,7 +527,7 @@ def test_replace_validator(input_data):
     if old_val.consensus_address == old_previous_proposer:
         previous_proposer = new_genesis['app_state']['distribution']['previous_proposer']
         assert new_val.consensus_address == previous_proposer
-    
+
     # app_state.slashing.missed_blocks
     missed_blocks = old_genesis['app_state']['slashing']['missed_blocks']
     cons_addrs = [missed['address'] for missed in missed_blocks]
@@ -507,10 +548,12 @@ def test_replace_validator(input_data):
 
     # app_state.slashing.signing_infos.validator_signing_info
     infos = old_genesis['app_state']['slashing']['signing_infos']
-    val_sign_addrs = [sign['validator_signing_info']['address'] for sign in infos]
+    val_sign_addrs = [sign['validator_signing_info']['address']
+                      for sign in infos]
     if old_val.consensus_address in val_sign_addrs:
         infos = new_genesis['app_state']['slashing']['signing_infos']
-        val_sign_addrs = [sign['validator_signing_info']['address'] for sign in infos]
+        val_sign_addrs = [sign['validator_signing_info']['address']
+                          for sign in infos]
         assert old_val.consensus_address not in val_sign_addrs
         assert new_val.consensus_address in val_sign_addrs
 
@@ -522,21 +565,21 @@ def test_increase_balance(input_data):
     out_filename = data['output_file']
     old_genesis = data['input_genesis']
     address = data['target_delegator'].address
-    delta = 1000000 # 1atom
+    delta = 1000000  # 1atom
     denom = 'uatom'
-    
+
     start_time = time.time()
-    
+
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
     gentink.add_task(gentink.increase_balance,
-                    address=address,
-                    amount=delta,
-                    denom=denom)
+                     address=address,
+                     amount=delta,
+                     denom=denom)
     gentink.run_tasks()
 
     end_time = time.time()
     print(f'Time elapsed: {end_time-start_time:.3f}s', end=' ')
-    
+
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
 
@@ -544,17 +587,19 @@ def test_increase_balance(input_data):
     balance = 0
     balances = old_genesis['app_state']['bank']['balances']
     if address in [bal['address'] for bal in balances]:
-        coins = balances[[balance['address'] for balance in balances].index(address)]['coins']
+        coins = balances[[balance['address']
+                          for balance in balances].index(address)]['coins']
         for coin in coins:
             if coin['denom'] == denom:
                 balance = int(coin['amount'])
     # Get new balance
     balances = new_genesis['app_state']['bank']['balances']
-    coins = balances[[balance['address'] for balance in balances].index(address)]['coins']
+    coins = balances[[balance['address']
+                      for balance in balances].index(address)]['coins']
     for coin in coins:
         if coin['denom'] == denom:
             new_balance = int(coin['amount'])
-    
+
     assert new_balance == balance + delta
 
     # Get old supply
@@ -593,7 +638,7 @@ def test_increase_delegator_stake_to_validator(input_data):
     stake_denom = data['stake_denom']
     delta = 1000000
     power_increase = 1
-    
+
     start_time = time.time()
 
     gentink = GenesisTinker(input_file=in_filename, output_file=out_filename)
@@ -601,9 +646,9 @@ def test_increase_delegator_stake_to_validator(input_data):
     gentink.not_bonded_pool_address = not_bonded_pool
     gentink.stake_denom = stake_denom
     gentink.add_task(gentink.increase_delegator_stake_to_validator,
-                    delegator= data['target_delegator'],
-                    validator= data['target_validator'],
-                    increase={'amount': delta, 'denom':stake_denom})
+                     delegator=data['target_delegator'],
+                     validator=data['target_validator'],
+                     increase={'amount': delta, 'denom': stake_denom})
     gentink.run_tasks()
 
     end_time = time.time()
@@ -634,7 +679,7 @@ def test_increase_delegator_stake_to_validator(input_data):
     for coin in bonding_pool_acct['coins']:
         if coin['denom'] == stake_denom:
             new_balance = int(coin['amount'])
-    
+
     assert old_balance + delta == new_balance
 
     # 2. Confirm increase to delegator stake
@@ -659,17 +704,17 @@ def test_increase_delegator_stake_to_validator(input_data):
         if val['operator_address'] == operator:
             old_val_data = val
             break
-    
+
     validators = new_genesis['app_state']['staking']['validators']
     new_val_data = {}
     for val in validators:
         if val['operator_address'] == operator:
             new_val_data = val
             break
-    
+
     # check the bonding status
     validator_tokens = int(old_val_data['tokens'])
-    if old_val_data['status'] == 'BOND_STATUS_UNBONDED': ## NOT TESTED YET
+    if old_val_data['status'] == 'BOND_STATUS_UNBONDED':  # NOT TESTED YET
         assert new_val_data['status'] == 'BOND_STATUS_BONDED'
         # check increased balance on bonded pool
         accounts = old_genesis['app_state']['bank']['balances']
@@ -708,7 +753,7 @@ def test_increase_delegator_stake_to_validator(input_data):
     old_shares = float(old_val_data["delegator_shares"])
     new_shares = old_shares + delta
     assert new_val_data["delegator_shares"] == \
-           str(format(new_shares, ".18f"))
+        str(format(new_shares, ".18f"))
 
     # 4. Confirm increase to validator power
     validators = old_genesis['validators']
@@ -724,12 +769,11 @@ def test_increase_delegator_stake_to_validator(input_data):
     # 5. Confirm delegation is updated
     for deleg in old_genesis['app_state']['staking']['delegations']:
         if deleg['delegator_address'] == delegator and \
-            deleg['validator_address'] == operator:
+                deleg['validator_address'] == operator:
             old_shares = deleg['shares']
     for deleg in new_genesis['app_state']['staking']['delegations']:
         if deleg['delegator_address'] == delegator and \
-            deleg['validator_address'] == operator:
+                deleg['validator_address'] == operator:
             new_shares = deleg['shares']
-    
+
     assert f'{float(old_shares) + delta:.18f}' == new_shares
-      
