@@ -15,22 +15,23 @@ jobs:
       - run: free -m
       - run: echo "GitHub branch is ${{ github.ref }}"
 
-      - name: Setup Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.10'
-      - run: pip install autopep8 yamllint pylint pytest
+      # - name: Setup Python
+      #   uses: actions/setup-python@v3
+      #   with:
+      #     python-version: '3.10'
+      # - run: pip install autopep8 yamllint pylint pytest
 
       # Checks-out your repository under $GITHUB_WORKSPACE,
       # so your workflow can access it
-      - name: Checkout repo
+      - name: Setup Python dependencies
         uses: actions/checkout@v3
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+      - run: python -m pip install -r requirements.txt
 
       # Run autopep8 and pylint
       - run: ./lint.sh
-
-      # Install dependencies
-      - run: python -m pip install -r requirements.txt
 
       # Run test on fresh genesis
       - run: python -m pytest -v -s
