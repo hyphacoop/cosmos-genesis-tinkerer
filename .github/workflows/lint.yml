@@ -1,11 +1,11 @@
 ---
 
-name: Lint and test
+name: Check linting and tests
 on:
   push
 
 jobs:
-  pylint-check:
+  pylint-pytest:
     runs-on: ubuntu-latest
     steps:
       # Get system info
@@ -28,6 +28,9 @@ jobs:
 
       # Run autopep8 and pylint
       - run: ./lint.sh
+
+      # Install dependencies
+      - run: python -m pip install -r requirements.txt
 
       # Run test on fresh genesis
       - run: python -m pytest -v -s
