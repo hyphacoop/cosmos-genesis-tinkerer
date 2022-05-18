@@ -302,7 +302,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         if self._task_list.tasks() != self._task_list.user_tasks():
             print('Invalid sequence: replace_validator and replace_delegator '
-                  'must come before all other functions')
+                  'must come before all other functions.')
+            print('Expected order:', str([task.func.__name__ for task in self._task_list.tasks()]))
             return True
 
         while self._task_list.tasks():
