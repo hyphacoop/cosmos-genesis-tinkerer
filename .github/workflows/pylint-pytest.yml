@@ -34,3 +34,6 @@ jobs:
 
       # Run test on fresh genesis
       - run: python -m pytest -v -s
+
+      # Run test on stateful genesis
+      - run: python -m pytest -v -s --genesis stateful
