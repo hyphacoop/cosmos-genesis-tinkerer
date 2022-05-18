@@ -15,13 +15,19 @@ jobs:
       - run: free -m
       - run: echo "GitHub branch is ${{ github.ref }}"
 
+      - name: Setup Python
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      # install linting
+      - run: pip install autopep8 yamllint pylint
+
       # Checks-out your repository under $GITHUB_WORKSPACE,
       # so your workflow can access it
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      # install linting
-      - run: pip3 install autopep8 yamllint pylint
-
+      
       # run lint.sh
       - run: ./lint.sh
