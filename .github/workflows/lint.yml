@@ -16,10 +16,10 @@ jobs:
       - run: echo "GitHub branch is ${{ github.ref }}"
 
       - name: Setup Python
-      - uses: actions/setup-python@v3
+        uses: actions/setup-python@v3
         with:
           python-version: '3.10'
-        run: pip install autopep8 yamllint pylint
+      -  run: pip install autopep8 yamllint pylint
       # install linting
       # - run: pip install autopep8 yamllint pylint
 
