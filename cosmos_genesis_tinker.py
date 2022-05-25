@@ -303,7 +303,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         if self._task_list.tasks() != self._task_list.user_tasks():
             print('Invalid sequence: replace_validator and replace_delegator '
                   'must come before all other functions.')
-            print('Expected order:', str([task.func.__name__ for task in self._task_list.tasks()]))
+            print('Expected order:', str(
+                [task.func.__name__ for task in self._task_list.tasks()]))
             return True
 
         while self._task_list.tasks():
@@ -318,8 +319,14 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         if self._phase == 'json':
             self.save_file(self.output_file)
+            content = self.generate_json()
+            content_bytes = content.encode('utf-8')
         else:
             shutil.copy2(self.preprocessing_file, self.output_file)
+            with open(self.preprocessing_file, 'rb') as infile:
+                content_bytes = infile.read()
+
+        print(f'SHA256SUM: {sha256(content_bytes).hexdigest()}')
 
     def create_preprocessing_file(self):
         """
@@ -617,7 +624,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         # coins must be in ascending sorted order by denom
         bisect.insort_right(supplies,
-                            {'amount': amount, 'denom': denom},
+                            {'denom': denom, 'amount': amount},
                             key=lambda x: x['denom'])
         return self
 
