@@ -19,15 +19,15 @@ Use this tool to test how the network reacts to a given scenario. The available 
 
 1. Clone from github:  `git clone git@github.com:hyphacoop/cosmos-genesis-tinkerer.git`
 2. Change directory: `cd cosmos-genesis-tinkerer`
-3. Create a python virtual environment: `python3 -m venv .env`
+3. Create a python virtual environment: `python -m venv .env`
 4. Source env shell vars:  `source .env/bin/activate`
 5. Install requirements: `pip install -r requirements.txt`
 
 ## Running a tinker file
 
-You can run the fresh genesis tinker file like this:
+You can run an example genesis tinker file like this:
 ```
-./fresh_genesis_tinker.py
+./example_fresh_genesis.py
 ```
 
 It will read the `fresh_genesis.json` file from the `tests` folder and generate `tinkered_genesis.json`.
