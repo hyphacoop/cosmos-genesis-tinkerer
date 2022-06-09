@@ -2,7 +2,14 @@
 
 name: Check linting and tests
 on:
-  push
+  pull_request:
+    types:
+      - opened
+      - closed
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
 
 jobs:
   pylint-pytest:
