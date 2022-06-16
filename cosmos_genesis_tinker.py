@@ -835,8 +835,9 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                               amount=increase['amount'], denom=increase['denom'])
         self.increase_delegator_stake(
             delegator=delegator, increase=increase['amount'])
-        self.increase_validator_stake(
-            operator_address=validator.operator_address, increase=increase['amount'], denom=increase['denom'])
+        self.increase_validator_stake(operator_address=validator.operator_address,
+                                      increase=increase['amount'],
+                                      denom=increase['denom'])
         self.increase_validator_power(operator_address=validator.operator_address,
                                       validator_address=validator.address,
                                       power_increase=int(increase['amount'] / power_to_tokens))
