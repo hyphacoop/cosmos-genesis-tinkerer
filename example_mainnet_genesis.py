@@ -19,7 +19,7 @@ NEW_CHAIN_ID = "local-testnet"
 UATOM_STAKE_INCREASE = 550000000 * 1000000
 UATOM_LIQUID_TOKEN_INCREASE = 175000000 * 1000000
 
-# The Coinbase validator is being replaced with the earth node
+# The Coinbase validator will be replaced
 cb_val = Validator()
 cb_val.self_delegation_address = "cosmos1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu3rw8nv"
 cb_val.self_delegation_public_key = "Ar7QZgBj/ZF6OFqFP5N1M2CoWYdwQcJyVBI/lgOAAaLu"
