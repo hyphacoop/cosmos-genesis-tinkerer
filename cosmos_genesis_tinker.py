@@ -760,7 +760,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         return self
 
-    def increase_validator_stake(self, operator_address, increase):
+    def increase_validator_stake(self, operator_address: str, increase: int, denom: str = 'uatom'):
         """
         Increases the stake of a validator as well as its delegator_shares
         """
@@ -778,9 +778,9 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                     self.log_step("Changing bond status to BOND_STATUS_BONDED")
                     validator["status"] = "BOND_STATUS_BONDED"
                     self.increase_balance(
-                        self.get_bonded_pool_address(), old_amount)
+                        self.get_bonded_pool_address(), old_amount, denom=denom)
                     self.increase_balance(
-                        self.get_not_bonded_pool_address(), -1*old_amount)
+                        self.get_not_bonded_pool_address(), -1*old_amount, denom=denom)
                 new_amount = old_amount + increase
                 validator["tokens"] = str(new_amount)
                 old_shares = float(validator["delegator_shares"])
@@ -835,8 +835,9 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                               amount=increase['amount'], denom=increase['denom'])
         self.increase_delegator_stake(
             delegator=delegator, increase=increase['amount'])
-        self.increase_validator_stake(
-            operator_address=validator.operator_address, increase=increase['amount'])
+        self.increase_validator_stake(operator_address=validator.operator_address,
+                                      increase=increase['amount'],
+                                      denom=increase['denom'])
         self.increase_validator_power(operator_address=validator.operator_address,
                                       validator_address=validator.address,
                                       power_increase=int(increase['amount'] / power_to_tokens))
