@@ -31,7 +31,7 @@ cb_val.consensus_address = "cosmosvalcons1lrqpcp5p2792wqxhxmt8tjveypjlvh378gkddu
 test_val = Validator()
 test_val.self_delegation_address = "cosmos1r5v5srda7xfth3hn2s26txvrcrntldjumt8mhl"
 test_val.self_delegation_public_key = "ArpmqEz3g5rxcqE+f8n15wCMuLyhWF+PO6+zA57aPB/d"
-test_val.operator_address = "cosmosvaloper1ju7y3hutxdtvghjyf9rj8fhq63w7hqf3r59lf0"
+test_val.operator_address = "cosmosvaloper1r5v5srda7xfth3hn2s26txvrcrntldju7lnwmv"
 test_val.public_key = "xAqzjs6UkEg8YvoQy60bxytIocODxoDTNRz4+H81tTc="
 test_val.address = "973C48DF8B3356C45E44494723A6E0D45DEB8131"
 test_val.consensus_address = "cosmosvalcons1ju7y3hutxdtvghjyf9rj8fhq63w7hqf3h8kr9w"
