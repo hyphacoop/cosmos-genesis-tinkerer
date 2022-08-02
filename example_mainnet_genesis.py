@@ -21,15 +21,17 @@ UATOM_LIQUID_TOKEN_INCREASE = 175000000 * 1000000
 
 # The Coinbase validator will be replaced
 cb_val = Validator()
-cb_val.self_delegation_address = "cosmos1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu3rw8nv"
-cb_val.self_delegation_public_key = "Ar7QZgBj/ZF6OFqFP5N1M2CoWYdwQcJyVBI/lgOAAaLu"
-cb_val.operator_address = "cosmosvaloper1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu5h6jll"
-cb_val.public_key = "NK3/1mb/ToXmxlcyCK8HYyudDn4sttz1sXyyD+42x7I="
-cb_val.address = "F8C01C0681578AA700D736D675C9992065F65E3E"
-cb_val.consensus_address = "cosmosvalcons1lrqpcp5p2792wqxhxmt8tjveypjlvh378gkddu"
+cb_val.self_delegation_address = "cosmos1c4k24jzduc365kywrsvf5ujz4ya6mwymy8vq4q"
+cb_val.self_delegation_reward_address = "cosmos1a3yjj7d3qnx4spgvjcwjq9cw9snrrrhu3rw8nv"
+cb_val.self_delegation_public_key = "Az/kvpTxdcW4E9/jP1ed50+Ynbp6oBWa0F0OOpf0sh+P"
+cb_val.operator_address = "cosmosvaloper1c4k24jzduc365kywrsvf5ujz4ya6mwympnc4en"
+cb_val.public_key = "LtiHVLCcE+oFII0vpIl9mfkGDmk9BpPg1eUkvKnO4xw="
+cb_val.address = "D68EEC0D2E8248F1EC64CDB585EDB61ECA432BD8"
+cb_val.consensus_address = "cosmosvalcons1668wcrfwsfy0rmryek6ctmdkrm9yx27c7grulf"
 
 test_val = Validator()
 test_val.self_delegation_address = "cosmos1r5v5srda7xfth3hn2s26txvrcrntldjumt8mhl"
+test_val.self_delegation_reward_address = "cosmos1r5v5srda7xfth3hn2s26txvrcrntldjumt8mhl"
 test_val.self_delegation_public_key = "ArpmqEz3g5rxcqE+f8n15wCMuLyhWF+PO6+zA57aPB/d"
 test_val.operator_address = "cosmosvaloper1r5v5srda7xfth3hn2s26txvrcrntldju7lnwmv"
 test_val.public_key = "xAqzjs6UkEg8YvoQy60bxytIocODxoDTNRz4+H81tTc="
