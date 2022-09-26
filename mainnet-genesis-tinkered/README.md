@@ -1,0 +1,1 @@
+The tinkered `cosmoshub-4` genesis can be found [here](https://files.polypore.xyz/genesis/mainnet-genesis-tinkered/)

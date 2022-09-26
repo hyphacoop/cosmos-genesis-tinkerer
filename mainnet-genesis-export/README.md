@@ -1,0 +1,1 @@
+The `cosmoshub-4` genesis export can be found [here](https://files.polypore.xyz/genesis/mainnet-genesis-export/)
