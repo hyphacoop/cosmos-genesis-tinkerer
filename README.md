@@ -64,3 +64,9 @@ tinker.add_task(tinker.increase_balance,
 
 tinker.run_tasks()
 ```
+
+## Exported genesis files
+We export the `cosmoshub-4` genesis bi-weekly and modify the exported genesis with `example_mainnet_genesis.py`:
+
+- A set of exported `cosmoshub-4` genesis files can be found [here](https://files.polypore.xyz/genesis/mainnet-genesis-export/).
+- A set of tinkered `cosmoshub-4` genesis files can be found [here](https://files.polypore.xyz/genesis/mainnet-genesis-tinkered/).
