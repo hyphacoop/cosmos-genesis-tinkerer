@@ -10,7 +10,7 @@ on:
     paths-ignore:
       - 'README.md'
       - 'LICENSE'
-
+  workflow_dispatch:
 jobs:
   pylint-pytest:
     runs-on: ubuntu-latest
