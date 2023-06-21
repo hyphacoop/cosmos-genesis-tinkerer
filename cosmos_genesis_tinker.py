@@ -336,7 +336,10 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step("Creating preprocessing file " +
                       self.preprocessing_file)
         self._preprocessing = True
-        shutil.copy2(self.input_file, self.preprocessing_file)
+        subprocess.run([
+                'jq', "'.'", self.input_file, '>', self.preprocessing_file],
+                check=True)
+        # shutil.copy2(self.input_file, self.preprocessing_file)
 
     def replace_delegator(self, old_delegator: Delegator, new_delegator: Delegator):
         """
