@@ -389,6 +389,14 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                 self.preprocessing_file],
                 check=True)
 
+        # Sort coins in bank balances
+        self.log_step("Sorting balances coins")
+        subprocess.run("jq '.app_state.bank.balances |= map(.coins |= sort_by(.denom))' " + \
+                      f"{self.preprocessing_file} > sorted.json",
+                check=True, shell=True)
+        subprocess.run(f"mv sorted.json {self.preprocessing_file}",
+                check=True, shell=True)
+
     def load_file(self, path):
         """
         Loads a genesis file from the given path

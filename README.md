@@ -15,6 +15,7 @@ Use this tool to test how the network reacts to a given scenario. The available 
 
 ### Requirements
 
+* `jq`
 * Python 3.10
 
 1. Clone from github:  `git clone git@github.com:hyphacoop/cosmos-genesis-tinkerer.git`
