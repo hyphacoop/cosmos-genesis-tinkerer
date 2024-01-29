@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-This example will turn a genesis file exported from the RS testnet
+This example will turn a genesis file exported from the release testnet
 into a genesis file that has a single validator.
 Usage:
-$ ./example_rs_testnet_genesis.py
+$ ./example_release_testnet_genesis.py
 To recover the validator key, use the following mnemonic:
 abandon abandon abandon abandon abandon abandon abandon abandon
 abandon abandon abandon abandon abandon abandon abandon abandon
@@ -11,23 +11,23 @@ abandon abandon abandon abandon abandon abandon abandon art
 """
 from cosmos_genesis_tinker import Delegator, Validator, GenesisTinker
 
-GENESIS_ARCHIVE = "rs-testnet-export.json"
+GENESIS_ARCHIVE = "release-testnet-export.json"
 
-NEW_CHAIN_ID = "rs-testnet"
+NEW_CHAIN_ID = "release-testnet"
 
 # Tokens configuration
 UATOM_STAKE_INCREASE = 5500000000 * 1000000
 UATOM_LIQUID_TOKEN_INCREASE = 1750000000 * 1000000
 
-# The apple validator will be replaced
-apple_val = Validator()
-apple_val.self_delegation_address = "cosmos1arjwkww79m65csulawqngr7ngs4uqu5hx9ak2a"
-apple_val.self_delegation_reward_address = "cosmos1arjwkww79m65csulawqngr7ngs4uqu5hx9ak2a"
-apple_val.self_delegation_public_key = "A2mxnq4a2RGcWnWe3YeAfOVB88Fy/IA2VPPteMhXwH1d"
-apple_val.operator_address = "cosmosvaloper1arjwkww79m65csulawqngr7ngs4uqu5hr3frxw"
-apple_val.public_key = "pjrsvzGpsIdotHc+ZYbwwVXb3ToJL6vDFMdsEX0D87A="
-apple_val.address = "AE84D29EC8E3BBCF123B48C702DAA982EEC2830B"
-apple_val.consensus_address = "cosmosvalcons146zd98kguwau7y3mfrrs9k4fsthv9qct9mdnx0"
+# The earth validator will be replaced
+earth_val = Validator()
+earth_val.self_delegation_address = "cosmos10v6wvdenee8r9l6wlsphcgur2ltl8ztkvhc8fw"
+earth_val.self_delegation_reward_address = "cosmos10v6wvdenee8r9l6wlsphcgur2ltl8ztkvhc8fw"
+earth_val.self_delegation_public_key = "AsYk9vGihCDVRd8V70Ti7FgVptqunyRv9S22J2XM9njJ"
+earth_val.operator_address = "cosmosvaloper10v6wvdenee8r9l6wlsphcgur2ltl8ztkfrvj9a"
+earth_val.public_key = "2j+NkKQHAxu36vduy1sDHJZIeZji7nxnmVIizv07MpE="
+earth_val.address = "A8A7A64D1F8FFAF2A5332177F777A5816036D65A"
+earth_val.consensus_address = "cosmosvalcons14zn6vngl3la09ffny9mlwaa9s9srd4j65cqc54"
 
 test_val = Validator()
 test_val.self_delegation_address = "cosmos1r5v5srda7xfth3hn2s26txvrcrntldjumt8mhl"
@@ -46,7 +46,7 @@ print("Tinkering...")
 gentink = GenesisTinker(input_file=GENESIS_ARCHIVE)
 
 gentink.add_task(gentink.replace_validator,
-                 old_validator=apple_val,
+                 old_validator=earth_val,
                  new_validator=test_val)
 
 gentink.add_task(gentink.set_chain_id,
