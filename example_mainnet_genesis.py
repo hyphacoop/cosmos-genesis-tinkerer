@@ -76,7 +76,7 @@ gentink.add_task(gentink.set_voting_period,
                  voting_period='60s')
 
 # Make redelegations faster
-gentink.add_task(gentink.set_unbonding_time,
-                 unbonding_time='1s')
+# gentink.add_task(gentink.set_unbonding_time,
+#                  unbonding_time='1s')
 
 gentink.run_tasks()
