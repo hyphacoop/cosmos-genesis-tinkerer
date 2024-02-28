@@ -562,8 +562,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step(
             "Swapping governance max deposit period to " + max_deposit_period)
 
-        deposit_params = self.app_state["gov"]["params"]
-        deposit_params["max_deposit_period"] = max_deposit_period
+        params = self.gov["params"]
+        params["max_deposit_period"] = max_deposit_period
 
         return self
 
@@ -576,8 +576,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step(
             "Swapping min governance deposit amount to " + min_amount + denom)
 
-        deposit_params = self.app_state['gov']['params']
-        min_deposit = deposit_params['min_deposit']
+        params = self.gov["params"]
+        min_deposit = params["min_deposit"]
 
         has_found_deposit_denom = False
 
@@ -602,7 +602,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step("Swapping tally parameter " +
                       parameter_name + " to " + value)
 
-        self.app_state["gov"]["tally_params"][parameter_name] = value
+        self.gov["params"][parameter_name] = value
 
         return self
 
@@ -613,7 +613,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         self.log_step("Swapping governance voting period to " + voting_period)
 
-        self.app_state["gov"]["params"]["voting_period"] = voting_period
+        self.gov["params"]["voting_period"] = voting_period
 
         return self
 
