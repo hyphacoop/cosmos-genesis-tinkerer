@@ -638,6 +638,23 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                             key=lambda x: x['denom'])
         return self
 
+    def add_allowed_ibc_client(self, allowed_ibc_client: str):
+        """
+        Add allowed IBC client
+        """
+
+        self.log_step("Adding new allowed IBC client " + allowed_ibc_client)
+
+        clients = self.app_state["ibc"]["client_genesis"]["params"]["allowed_clients"]
+
+        for client in clients:
+            if client == allowed_ibc_client:
+                # Already exists, so we don't need to add it
+                return self
+
+        bisect.insort_right(clients, allowed_ibc_client, key=lambda x: x)
+        return self
+
     def increase_supply(self, increase: int, denom="uatom"):
         """
         Increase the total supply of coins of a given denomination
