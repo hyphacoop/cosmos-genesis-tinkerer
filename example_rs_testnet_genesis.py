@@ -74,5 +74,6 @@ gentink.add_task(gentink.set_tally_param,
                  value='0.000000000000000001')
 gentink.add_task(gentink.set_voting_period,
                  voting_period='60s')
-
+gentink.add_task(gentink.add_allowed_ibc_client,
+                 allowed_ibc_client='09-localhost')
 gentink.run_tasks()
