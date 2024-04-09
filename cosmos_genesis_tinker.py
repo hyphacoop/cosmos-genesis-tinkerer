@@ -562,8 +562,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step(
             "Swapping governance max deposit period to " + max_deposit_period)
 
-        deposit_params = self.gov["deposit_params"]
-        deposit_params["max_deposit_period"] = max_deposit_period
+        params = self.gov["params"]
+        params["max_deposit_period"] = max_deposit_period
 
         return self
 
@@ -576,8 +576,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step(
             "Swapping min governance deposit amount to " + min_amount + denom)
 
-        deposit_params = self.gov['deposit_params']
-        min_deposit = deposit_params['min_deposit']
+        params = self.gov["params"]
+        min_deposit = params["min_deposit"]
 
         has_found_deposit_denom = False
 
@@ -602,7 +602,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         self.log_step("Swapping tally parameter " +
                       parameter_name + " to " + value)
 
-        self.gov["tally_params"][parameter_name] = value
+        self.gov["params"][parameter_name] = value
 
         return self
 
@@ -613,7 +613,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         self.log_step("Swapping governance voting period to " + voting_period)
 
-        self.gov["voting_params"]["voting_period"] = voting_period
+        self.gov["params"]["voting_period"] = voting_period
 
         return self
 
@@ -636,6 +636,23 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         bisect.insort_right(supplies,
                             {'denom': denom, 'amount': amount},
                             key=lambda x: x['denom'])
+        return self
+
+    def add_allowed_ibc_client(self, allowed_ibc_client: str):
+        """
+        Add allowed IBC client
+        """
+
+        self.log_step("Adding new allowed IBC client " + allowed_ibc_client)
+
+        clients = self.app_state["ibc"]["client_genesis"]["params"]["allowed_clients"]
+
+        for client in clients:
+            if client == allowed_ibc_client:
+                # Already exists, so we don't need to add it
+                return self
+
+        bisect.insort_right(clients, allowed_ibc_client, key=lambda x: x)
         return self
 
     def increase_supply(self, increase: int, denom="uatom"):

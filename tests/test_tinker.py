@@ -212,19 +212,19 @@ def test_governance_functions(input_data):
     # max_deposit_period
     with open(out_filename, 'r') as new_file:
         new_genesis = json.load(new_file)
-    assert new_genesis['app_state']['gov']['deposit_params']['max_deposit_period'] == new_time
+    assert new_genesis['app_state']['gov']['params']['max_deposit_period'] == new_time
 
     # min_deposit
-    min_deps = new_genesis['app_state']['gov']['deposit_params']['min_deposit']
+    min_deps = new_genesis['app_state']['gov']['params']['min_deposit']
     for deposit in min_deps:
         if deposit['denom'] == new_denom:
             assert deposit['amount'] == new_amount
             break
 
     # tally_param
-    tally_params = new_genesis['app_state']['gov']['tally_params']
+    gov_params = new_genesis['app_state']['gov']['params']
     for parameter in new_params:
-        assert tally_params[parameter['name']] == parameter['value']
+        assert gov_params[parameter['name']] == parameter['value']
 
 
 def test_create_coin(input_data):

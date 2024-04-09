@@ -79,4 +79,7 @@ gentink.add_task(gentink.set_voting_period,
 # gentink.add_task(gentink.set_unbonding_time,
 #                  unbonding_time='1s')
 
+gentink.add_task(gentink.add_allowed_ibc_client,
+                 allowed_ibc_client='09-localhost')
+
 gentink.run_tasks()
