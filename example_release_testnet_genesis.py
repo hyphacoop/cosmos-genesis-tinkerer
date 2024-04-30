@@ -76,4 +76,8 @@ gentink.add_task(gentink.set_voting_period,
                  voting_period='60s')
 gentink.add_task(gentink.add_allowed_ibc_client,
                  allowed_ibc_client='09-localhost')
+gentink.add_task(gentink.increase_balance,
+                 address='cosmos10d07y265gmmuvt4z0w9aw880jnsr700j6zn9kn',
+                 amount=-100000)
+gentink.add_task(gentink.set_unbonding_time)
 gentink.run_tasks()
