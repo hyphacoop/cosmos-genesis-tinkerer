@@ -259,7 +259,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         """
         Get the list of validators from the loaded genesis file
         """
-        return self.genesis["validators"]
+        return self.genesis["consensus"]["validators"]
 
     def log_step(self, message):
         """
@@ -725,13 +725,13 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         Increase the staking power of a validator
         Also increases the last total power value
 
-        If validator isn't found in genesis["validators"],
+        If validator isn't found in genesis["consensus"]["validators"],
         it doesn't exist in the validator set of top 150 validators
         by voting power. In that case, if the voting power increase
         is larger than the smallest validator by voting power,
         replace the smallest validator
 
-        validators in the genesis["validators"] looks like this:
+        validators in the genesis["consensus"]["validators"] looks like this:
         {
             'address': 'EBED694E6CE1224FB1E8A2DD8EE63A38568B1E2B',
             'name': 'Umbrella ☔',
