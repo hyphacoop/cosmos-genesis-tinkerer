@@ -26,7 +26,7 @@ import os
 import requests
 
 
-class Validator:
+class Validator:  # pylint: disable=R0902
     """
     Provides access functions for details
     associated with a validator:
@@ -259,7 +259,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         """
         Get the list of validators from the loaded genesis file
         """
-        return self.genesis["consensus"]["validators"]
+        return self.genesis["validators"]
 
     def log_step(self, message):
         """
@@ -328,6 +328,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         print(f'SHA256SUM: {sha256(content_bytes).hexdigest()}')
 
+        return False
+
     def create_preprocessing_file(self):
         """
         Creates a preprocessing json file in which
@@ -337,7 +339,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                       self.preprocessing_file)
         self._preprocessing = True
         subprocess.run(f"jq '.' {self.input_file} > {self.preprocessing_file}",
-                check=True, shell=True)
+                       check=True, shell=True)
         # shutil.copy2(self.input_file, self.preprocessing_file)
 
     def replace_delegator(self, old_delegator: Delegator, new_delegator: Delegator):
@@ -391,11 +393,11 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         # Sort coins in bank balances
         self.log_step("Sorting balances coins")
-        subprocess.run("jq '.app_state.bank.balances |= map(.coins |= sort_by(.denom))' " + \
-                      f"{self.preprocessing_file} > sorted.json",
-                check=True, shell=True)
+        subprocess.run("jq '.app_state.bank.balances |= map(.coins |= sort_by(.denom))' " +
+                       f"{self.preprocessing_file} > sorted.json",
+                       check=True, shell=True)
         subprocess.run(f"mv sorted.json {self.preprocessing_file}",
-                check=True, shell=True)
+                       check=True, shell=True)
 
     def load_file(self, path):
         """
@@ -426,7 +428,8 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
 
         self.log_step(log_string)
 
-        request = requests.get(url, allow_redirects=True, stream=True)
+        request = requests.get(url, allow_redirects=True,
+                               stream=True, timeout=30)
 
         # Auto-read from zipfiles
         if '.tar.gz' in url:
@@ -447,7 +450,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
         if shasum is not None:
             got_digest = sha256(content).hexdigest()
             if got_digest != shasum:
-                raise Exception(
+                raise ValueError(
                     "Got invalid digest from remote file", got_digest, shasum)
 
         self.genesis = json.loads(content)
@@ -469,7 +472,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
             shasum = self.shasum
 
         if input_name is None:
-            raise Exception(
+            raise FileNotFoundError(
                 'Unable to load genesis file, please specify the --input flag')
 
         self.log_step('Autoloading ' + input_name)
@@ -710,7 +713,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                 break
 
         if not found_balance:
-            raise Exception('Could not find balance for address')
+            raise LookupError('Could not find balance for address')
 
         self.increase_supply(amount, denom)
         return self
@@ -819,7 +822,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                 break
 
         if not found_validator:
-            raise Exception("Could not find operator_address")
+            raise LookupError("Could not find operator_address")
 
         return self
 
@@ -844,7 +847,7 @@ class GenesisTinker:  # pylint: disable=R0902,R0904
                 break
 
         if not found_stake:
-            raise Exception("Unable to find delegator_address")
+            raise LookupError("Unable to find delegator_address")
 
         return self
 

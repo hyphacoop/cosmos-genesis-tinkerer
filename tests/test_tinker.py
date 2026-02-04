@@ -132,7 +132,7 @@ def test_task_order(input_data):
     end_time = time.time()
 
     assert sad_result
-    assert happy_result is None
+    assert not happy_result
 
 
 def test_set_chain_id(input_data):
