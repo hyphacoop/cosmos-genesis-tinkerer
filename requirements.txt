@@ -20,5 +20,5 @@ pytest==7.1.1
 requests==2.31.0
 toml==0.10.2
 tomli==2.0.1
-urllib3==2.6.0
+urllib3==2.7.0
 wrapt==1.14.1
